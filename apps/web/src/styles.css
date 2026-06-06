@@ -539,3 +539,16 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .wp-item.active { background: var(--ui-row-active-background); color: var(--ui-accent); }
 .wp-item svg { color: var(--ui-text-tertiary); flex: 0 0 auto; }
 .wp-item.active svg { color: var(--ui-accent); }
+
+/* Sidebar project switcher (full width) */
+.sidebar-projects { gap: 4px; }
+.sidebar-projects .eyebrow { margin: 4px 8px; }
+.proj-switch { width: 100%; }
+.proj-switch .wiki-picker-btn { width: 100%; min-width: 0; }
+.proj-switch .wiki-picker-menu { min-width: 100%; max-height: 50vh; overflow: auto; }
+
+/* Projects screen cards: more breathing room */
+.project-card { padding: 14px 16px; display: grid; gap: 5px; }
+.project-card small { margin-top: 0; }
+.project-card span { margin-top: 0; }
+.project-list { gap: 12px; }

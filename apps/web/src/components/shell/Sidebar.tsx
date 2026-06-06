@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
 import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear, IconClose, IconPencil, IconTrash, IconWiki } from './icons'
+import { ProjectSwitcher } from './ProjectSwitcher'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
 
@@ -30,7 +31,6 @@ export function Sidebar(props: {
   sessions: ChatSession[]
   user: User
 }) {
-  const shared = props.projects.filter(project => project.visibility === 'shared')
   return <div className="sidebar-inner">
     <div className="sidebar-head"><div className="brand-row"><span className="brand-dot">H</span><strong>Hive OS</strong></div><div className="sidebar-actions"><button className="icon-button mobile-only" onClick={props.onClose} aria-label="Close menu"><IconClose size={18} /></button></div></div>
     <section className="nav-group">{nav.filter(item => item.id !== 'users' || props.user.role === 'environment_admin').map(item => {
@@ -42,7 +42,7 @@ export function Sidebar(props: {
       }
       return <button className={`nav-item ${props.currentView === item.id && !item.action ? 'active' : ''}`} key={item.id} onClick={onClick}><span className="nav-icon"><Icon /></span><strong>{item.label}</strong></button>
     })}</section>
-    {shared.length > 0 && <section className="nav-group projects-mini"><button className="group-toggle"><span>Shared</span><span>{shared.length}</span></button>{shared.map(project => <button className={`project-row ${props.activeProject?.slug === project.slug ? 'active' : ''}`} key={project.slug} onClick={() => { props.onSelectProject(project); props.onSelectView('chat'); props.onClose() }} title={`${project.slug} · ${project.role}`}><span className="status-dot" /><div><strong>{project.name}</strong></div></button>)}</section>}
+    <section className="nav-group sidebar-projects"><p className="eyebrow">Project</p><ProjectSwitcher projects={props.projects} activeProject={props.activeProject} onSelect={p => { props.onSelectProject(p); props.onClose() }} /></section>
     {props.sessions.length > 0 && <section className="nav-group"><button className="group-toggle"><span>Sessions</span><span>{props.sessions.length}</span></button>{props.sessions.slice(0, 20).map(session => <div className={`project-row session-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} title={`${session.project_slug || 'no project'} · ${session.profile_slug || 'profile'}`}>
       <button className="row-main" onClick={() => { props.onSelectSession(session); props.onClose() }}><span className="status-dot" /><strong>{session.title}</strong></button>
       <span className="row-actions">
