@@ -457,3 +457,19 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .chat-controls .toolbar-control { display: flex; align-items: center; gap: 6px; color: var(--ui-text-secondary); font-size: .84rem; }
 .chat-controls select { border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 6px 9px; font-size: .82rem; }
 @media (max-width: 767px) { .rail-fab { display: none; } }
+
+/* ── VSCode-like file tree: inline input, context menu, active file ── */
+.tree-row.file.active { background: var(--ui-row-active-background); color: var(--ui-text-primary); }
+.tree-row.inline { padding-top: 2px; padding-bottom: 2px; }
+.tree-input { flex: 1; min-width: 0; border: 1px solid var(--ui-accent); border-radius: 6px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 2px 6px; font-size: .85rem; outline: none; }
+.ctx-menu { position: fixed; z-index: 60; min-width: 160px; display: grid; gap: 1px; border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-surface); box-shadow: 0 14px 34px rgba(15,23,42,.2); padding: 5px; }
+.ctx-menu button { width: 100%; text-align: left; border: 0; background: transparent; color: var(--ui-text-secondary); padding: 7px 10px; border-radius: 7px; font-size: .84rem; }
+.ctx-menu button:hover { background: var(--ui-row-hover-background); color: var(--ui-text-primary); }
+.ctx-menu button.danger:hover { background: var(--ui-danger-bg); color: var(--ui-danger); }
+.ctx-sep { height: 1px; background: var(--ui-stroke-tertiary); margin: 4px 2px; }
+
+/* CodeMirror editor fills the file editor pane */
+.cm-wrap { flex: 1; min-height: 0; overflow: hidden; }
+.cm-wrap .cm-editor { height: 100%; font-size: .84rem; }
+.cm-wrap .cm-scroller { font-family: var(--font-mono); }
+.cm-wrap .cm-editor.cm-focused { outline: none; }
