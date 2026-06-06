@@ -1,5 +1,6 @@
-// Lightweight Apple/SF-Symbols-style line icons. Stroke = currentColor so they
-// inherit the surrounding text color. Single responsibility: presentational SVGs.
+// Cohesive Apple/SF-Symbols-style line icons used across the whole app.
+// Stroke = currentColor so each icon inherits its surrounding text color;
+// uniform 1.7 stroke, rounded caps/joins, 24px grid.
 import React from 'react'
 
 type IconProps = { size?: number }
@@ -25,6 +26,7 @@ export const IconProjects = ({ size }: IconProps) => (
     <path d="M3 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
   </Svg>
 )
+export const IconFolder = IconProjects
 
 export const IconAgents = ({ size }: IconProps) => (
   <Svg size={size}>
@@ -47,5 +49,88 @@ export const IconGear = ({ size }: IconProps) => (
   <Svg size={size}>
     <circle cx="12" cy="12" r="3.2" />
     <path d="M19.4 13a7.6 7.6 0 0 0 0-2l2-1.5-2-3.5-2.4 1a7.6 7.6 0 0 0-1.7-1L15 3h-4l-.3 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.5 2 1.5a7.6 7.6 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7.6 7.6 0 0 0 1.7 1L11 21h4l.3-2.5a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.5z" />
+  </Svg>
+)
+
+export const IconPanelRight = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="M15 5v14" />
+  </Svg>
+)
+
+export const IconMenu = ({ size }: IconProps) => (
+  <Svg size={size}><path d="M4 7h16M4 12h16M4 17h16" /></Svg>
+)
+
+export const IconPlus = ({ size }: IconProps) => (
+  <Svg size={size}><path d="M12 5v14M5 12h14" /></Svg>
+)
+
+export const IconClose = ({ size }: IconProps) => (
+  <Svg size={size}><path d="M6 6l12 12M18 6L6 18" /></Svg>
+)
+
+export const IconPencil = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M4 20l4-1L19 8a1.9 1.9 0 0 0-2.7-2.7L5 16.5 4 20z" />
+    <path d="M14.5 6.5l3 3" />
+  </Svg>
+)
+
+export const IconTrash = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M4.5 7h15" />
+    <path d="M9 7V5.2a1.2 1.2 0 0 1 1.2-1.2h3.6A1.2 1.2 0 0 1 15 5.2V7" />
+    <path d="M6.5 7l.8 11a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-11" />
+    <path d="M10 11v5M14 11v5" />
+  </Svg>
+)
+
+export const IconFile = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+    <path d="M14 3v5h5" />
+  </Svg>
+)
+
+export const IconFilePlus = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M13 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5" />
+    <path d="M13 3v5h5" />
+    <path d="M17 13.5v6M14 16.5h6" />
+  </Svg>
+)
+
+export const IconFolderPlus = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M3 7a2 2 0 0 1 2-2h3.4a2 2 0 0 1 1.4.6L11 7h6a2 2 0 0 1 2 2v3" />
+    <path d="M3 7v10a2 2 0 0 0 2 2h6" />
+    <path d="M17 14.5v6M14 17.5h6" />
+  </Svg>
+)
+
+export const IconChevronRight = ({ size }: IconProps) => (
+  <Svg size={size}><path d="M9.5 6l6 6-6 6" /></Svg>
+)
+
+export const IconCopy = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M11 9h7a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z" />
+    <path d="M5 15a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2" />
+  </Svg>
+)
+
+export const IconCheck = ({ size }: IconProps) => (
+  <Svg size={size}><path d="M5 13l4 4L19 7" /></Svg>
+)
+
+export const IconArrowDown = ({ size }: IconProps) => (
+  <Svg size={size}><path d="M12 5v14M6 13l6 6 6-6" /></Svg>
+)
+
+export const IconSparkle = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z" />
   </Svg>
 )

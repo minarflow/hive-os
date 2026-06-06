@@ -2,6 +2,7 @@ import React from 'react'
 import type { FileEntry, Project } from '../../types'
 import { listTree, mkdir, renamePath, deletePath, writeFile } from '../../api/files'
 import { FileEditor } from './FileEditor'
+import { IconFile, IconFolder, IconChevronRight, IconFilePlus, IconFolderPlus, IconPencil, IconTrash } from '../shell/icons'
 
 function Node({ token, slug, dir, depth, onOpen, refreshKey }: { token: string; slug: string; dir: string; depth: number; onOpen: (path: string) => void; refreshKey: number }) {
   const [entries, setEntries] = React.useState<FileEntry[]>([])
@@ -18,7 +19,7 @@ function Node({ token, slug, dir, depth, onOpen, refreshKey }: { token: string; 
       const path = dir ? `${dir}/${entry.name}` : entry.name
       return entry.type === 'dir'
         ? <Folder key={path} token={token} slug={slug} path={path} name={entry.name} depth={depth} onOpen={onOpen} refreshKey={refreshKey} />
-        : <button key={path} className="tree-row file" style={{ paddingLeft: 8 + depth * 12 }} onClick={() => onOpen(path)}>📄 {entry.name}</button>
+        : <button key={path} className="tree-row file" style={{ paddingLeft: 8 + depth * 12 }} onClick={() => onOpen(path)}><span className="tree-ico"><IconFile size={15} /></span><span className="tree-name">{entry.name}</span></button>
     })}
     {loaded && entries.length === 0 && depth === 0 && <p className="muted tree-empty">Empty project</p>}
   </div>
@@ -27,7 +28,7 @@ function Node({ token, slug, dir, depth, onOpen, refreshKey }: { token: string; 
 function Folder({ token, slug, path, name, depth, onOpen, refreshKey }: { token: string; slug: string; path: string; name: string; depth: number; onOpen: (path: string) => void; refreshKey: number }) {
   const [open, setOpen] = React.useState(false)
   return <div>
-    <button className="tree-row dir" style={{ paddingLeft: 8 + depth * 12 }} onClick={() => setOpen(v => !v)}>{open ? '▾' : '▸'} 📁 {name}</button>
+    <button className="tree-row dir" style={{ paddingLeft: 8 + depth * 12 }} onClick={() => setOpen(v => !v)}><span className={`tree-chevron ${open ? 'open' : ''}`}><IconChevronRight size={13} /></span><span className="tree-ico"><IconFolder size={15} /></span><span className="tree-name">{name}</span></button>
     {open && <Node token={token} slug={slug} dir={path} depth={depth + 1} onOpen={onOpen} refreshKey={refreshKey} />}
   </div>
 }
@@ -70,7 +71,7 @@ export function WorkspaceTree({ token, project }: { token: string; project: Proj
   }
 
   return <aside className="right-rail">
-    <div className="tree-toolbar"><strong>{project.name}</strong><div className="tree-actions"><button title="New file" onClick={() => void newFile()}>＋📄</button><button title="New folder" onClick={() => void newFolder()}>＋📁</button><button title="Rename" onClick={() => void rename()}>✎</button><button title="Delete" onClick={() => void remove()}>🗑</button></div></div>
+    <div className="tree-toolbar"><strong>{project.name}</strong><div className="tree-actions"><button title="New file" aria-label="New file" onClick={() => void newFile()}><IconFilePlus size={16} /></button><button title="New folder" aria-label="New folder" onClick={() => void newFolder()}><IconFolderPlus size={16} /></button><button title="Rename" aria-label="Rename" onClick={() => void rename()}><IconPencil size={16} /></button><button title="Delete" aria-label="Delete" onClick={() => void remove()}><IconTrash size={16} /></button></div></div>
     {treeError && <p className="tree-error">{treeError}</p>}
     <div className="tree-scroll"><Node token={token} slug={project.slug} dir="" depth={0} onOpen={setEditing} refreshKey={refreshKey} /></div>
     {editing && <FileEditor token={token} slug={project.slug} path={editing} onClose={() => setEditing(null)} />}

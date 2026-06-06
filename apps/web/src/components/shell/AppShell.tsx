@@ -3,6 +3,7 @@ import type { ChatSession, Profile, Project, User, View } from '../../types'
 import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { RightRail } from './RightRail'
+import { IconPanelRight } from './icons'
 
 const matches = (query: string) => typeof window !== 'undefined' && window.matchMedia(query).matches
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -86,7 +87,7 @@ export function AppShell(props: {
         <header className="main-header">
           <div className="header-title"><h2>{props.activeProject?.name || 'Team workspace'}</h2></div>
           <div className="header-right">
-            <button className="icon-button panel-toggle rail-toggle" onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel">◨</button>
+            <button className="icon-button panel-toggle rail-toggle" onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel"><IconPanelRight size={18} /></button>
           </div>
         </header>
         {props.children}

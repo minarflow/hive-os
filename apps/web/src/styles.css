@@ -430,3 +430,18 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .swatch-pv i { width: 16px; height: 16px; border-radius: 50%; }
 .appearance-font { display: grid; gap: 6px; max-width: 280px; color: var(--ui-text-secondary); font-size: .84rem; }
 .appearance-font select { border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 8px 10px; }
+
+/* ── Icon polish: file tree rows, chevron, copy button ────────────── */
+.tree-row { display: flex; align-items: center; gap: 6px; }
+.tree-ico { display: inline-flex; align-items: center; color: var(--ui-text-tertiary); flex: 0 0 auto; }
+.tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tree-row.file .tree-ico { margin-left: 19px; }
+.tree-chevron { display: inline-flex; align-items: center; color: var(--ui-text-tertiary); flex: 0 0 auto; transition: transform .12s ease; }
+.tree-chevron.open { transform: rotate(90deg); }
+.tree-actions button { display: inline-flex; align-items: center; color: var(--ui-text-tertiary); }
+.tree-actions button:hover { color: var(--ui-text-primary); }
+.row-action { display: inline-flex; align-items: center; color: var(--ui-text-tertiary); }
+.row-action.danger:hover { color: var(--ui-danger); }
+.copy-btn { display: inline-flex; align-items: center; gap: 5px; }
+.copy-btn.copied { color: var(--ui-success-strong); border-color: color-mix(in srgb, var(--ui-success) 40%, var(--ui-stroke-secondary)); }
+.copy-btn svg { display: block; }

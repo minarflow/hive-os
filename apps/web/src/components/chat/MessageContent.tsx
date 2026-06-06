@@ -1,6 +1,7 @@
 import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import { IconCopy, IconCheck } from '../shell/icons'
 
 // A fenced code block with a copy button. The copy reads the rendered text
 // straight off the <pre>, so it works regardless of language/highlighting.
@@ -17,7 +18,7 @@ function CodeBlock({ children }: { children?: React.ReactNode }) {
   }
   return (
     <div className="code-block">
-      <button className="copy-btn" onClick={copy} title="Copy code" aria-label="Copy code">{copied ? '✓ Copied' : 'Copy'}</button>
+      <button className={`copy-btn ${copied ? 'copied' : ''}`} onClick={copy} title="Copy code" aria-label="Copy code">{copied ? <IconCheck size={14} /> : <IconCopy size={14} />}<span>{copied ? 'Copied' : 'Copy'}</span></button>
       <pre ref={ref}>{children}</pre>
     </div>
   )

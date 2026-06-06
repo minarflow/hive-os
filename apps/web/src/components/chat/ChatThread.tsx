@@ -1,6 +1,7 @@
 import React from 'react'
 import type { ChatMessage, RunEvent } from '../../types'
 import { MessageContent } from './MessageContent'
+import { IconSparkle, IconArrowDown } from '../shell/icons'
 
 const ROLE_LABEL: Record<string, string> = { user: 'You', assistant: 'Hermes', error: 'Run error', system: 'Hive OS' }
 
@@ -39,11 +40,11 @@ export function ChatThread({ messages, events, pendingRunId }: { messages: ChatM
 
   return <div className="thread" ref={scrollRef} onScroll={onScroll}>
     <div className="chat-log">
-      {empty && <div className="chat-empty"><div className="chat-empty-mark">✦</div><h3>Start a conversation</h3><p>Ask Hermes anything in this project. Type <code>/</code> for commands.</p></div>}
+      {empty && <div className="chat-empty"><div className="chat-empty-mark"><IconSparkle size={30} /></div><h3>Start a conversation</h3><p>Ask Hermes anything in this project. Type <code>/</code> for commands.</p></div>}
       {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{ROLE_LABEL[message.role] || 'Hive OS'}</strong>{message.role === 'user' ? <span>{message.content}</span> : <MessageContent content={message.content} />}</div>)}
       {streaming && <div className="chat-line assistant enter"><strong>Hermes</strong><MessageContent content={streaming} /></div>}
       {waiting && <div className="chat-line pending enter"><strong>Hermes</strong><span className="typing"><i /><i /><i /></span></div>}
     </div>
-    {!atBottom && <button className="scroll-bottom" onClick={scrollToBottom} aria-label="Scroll to latest" title="Scroll to latest">↓</button>}
+    {!atBottom && <button className="scroll-bottom" onClick={scrollToBottom} aria-label="Scroll to latest" title="Scroll to latest"><IconArrowDown size={18} /></button>}
   </div>
 }
