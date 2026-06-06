@@ -18,6 +18,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "run_timeout_seconds": 300,
     "auth_token_ttl_hours": 24 * 14,
     "seed_users": [],
+    "default_team_name": "Team",
+    "provision_starter_dirs": ["wiki", "tasks", "artifacts"],
+    "auto_provision": True,
     "start_worker": True,
     "web_dist_path": None,
 }

@@ -193,3 +193,12 @@ def test_backfill_idempotent(tmp_path):
     provisioning.backfill(conn, cfg)
     provisioning.backfill(conn, cfg)
     assert conn.execute("SELECT COUNT(*) AS c FROM projects").fetchone()["c"] == 1
+
+
+def test_default_config_has_provisioning_keys():
+    from hive_os_api.settings import normalize_config
+
+    cfg = normalize_config()
+    assert cfg["default_team_name"] == "Team"
+    assert cfg["provision_starter_dirs"] == ["wiki", "tasks", "artifacts"]
+    assert cfg["auto_provision"] is True
