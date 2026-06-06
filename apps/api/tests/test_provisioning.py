@@ -23,7 +23,7 @@ def make_cfg(tmp_path):
 def add_user(conn, username, role="member"):
     cur = conn.execute(
         "INSERT INTO users(username, os_user, role, password_hash, password_set_at) VALUES (?, ?, ?, ?, ?)",
-        (username, username, role, hash_password("pw"), iso_now()),
+        (username, username, role, hash_password("password1"), iso_now()),
     )
     return dict(conn.execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
 
@@ -34,3 +34,36 @@ def test_team_name_round_trip_and_fallback(tmp_path):
     assert provisioning.get_team_name(conn, cfg) == "Team"  # fallback to cfg
     provisioning.set_team_name(conn, "Linc")
     assert provisioning.get_team_name(conn, cfg) == "Linc"
+
+
+def test_scaffold_project_dir_creates_folders_and_readme(tmp_path):
+    cfg = make_cfg(tmp_path)
+    path = provisioning.scaffold_project_dir(cfg, "demo")
+    assert path == tmp_path / "projects" / "demo"
+    assert (path / "wiki").is_dir()
+    assert (path / "tasks").is_dir()
+    assert (path / "artifacts").is_dir()
+    assert (path / "README.md").read_text().startswith("# demo")
+
+
+def test_scaffold_is_idempotent(tmp_path):
+    cfg = make_cfg(tmp_path)
+    provisioning.scaffold_project_dir(cfg, "demo")
+    provisioning.scaffold_project_dir(cfg, "demo")  # must not raise
+    assert (tmp_path / "projects" / "demo" / "wiki").is_dir()
+
+
+def test_ensure_member_idempotent(tmp_path):
+    conn = make_db()
+    user = add_user(conn, "alice")
+    conn.execute(
+        "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES ('p', 'P', '/x', ?, 'private')",
+        (user["id"],),
+    )
+    pid = conn.execute("SELECT id FROM projects WHERE slug = 'p'").fetchone()["id"]
+    provisioning.ensure_member(conn, pid, user["id"], "owner")
+    provisioning.ensure_member(conn, pid, user["id"], "owner")  # no duplicate
+    count = conn.execute(
+        "SELECT COUNT(*) AS c FROM project_members WHERE project_id = ? AND user_id = ?", (pid, user["id"])
+    ).fetchone()["c"]
+    assert count == 1
