@@ -28,6 +28,7 @@ export function AppShell(props: {
   onDeleteSession: (id: number) => void
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
+  onOpenTask: (taskId: number) => void
   onSelectView: (view: View) => void
   profiles: Profile[]
   projects: Project[]

@@ -142,6 +142,13 @@ export const IconAudit = ({ size }: IconProps) => (
   </Svg>
 )
 
+export const IconTasks = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <path d="M9 6h11M9 12h11M9 18h11" />
+    <path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+  </Svg>
+)
+
 export const IconArtifacts = ({ size }: IconProps) => (
   <Svg size={size}>
     <path d="M21 8l-9-5-9 5 9 5 9-5z" />

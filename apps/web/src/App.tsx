@@ -13,6 +13,7 @@ import { ChatScreen } from './screens/ChatScreen'
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { WikiScreen } from './screens/WikiScreen'
 import { ArtifactsScreen } from './screens/ArtifactsScreen'
+import { TasksScreen } from './screens/TasksScreen'
 import { ProfilesScreen } from './screens/ProfilesScreen'
 import { RunnersScreen } from './screens/RunnersScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
@@ -25,6 +26,7 @@ export function App() {
   const [token, setToken] = React.useState(localStorage.getItem('hive-token') || '')
   const [user, setUser] = React.useState<User | null>(null)
   const [view, setView] = React.useState<View>('chat')
+  const [pendingTask, setPendingTask] = React.useState<number | null>(null)
   const [profiles, setProfiles] = React.useState<Profile[]>([])
   const [projects, setProjects] = React.useState<Project[]>([])
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
@@ -127,6 +129,7 @@ export function App() {
       onDeleteSession={id => void handleDeleteSession(id)}
       onSelectProject={project => setActiveProject(project)}
       onSelectSession={session => { setActiveSession(session); setView('chat') }}
+      onOpenTask={taskId => { setPendingTask(taskId); setView('tasks') }}
       onSelectView={setView}
       profiles={profiles}
       projects={projects}
@@ -139,6 +142,7 @@ export function App() {
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'wiki' && <WikiScreen token={token} projects={projects} />}
       {view === 'artifacts' && <ArtifactsScreen token={token} projects={projects} activeProject={activeProject} />}
+      {view === 'tasks' && <TasksScreen token={token} projects={projects} activeProject={activeProject} pendingTaskId={pendingTask} onPendingConsumed={() => setPendingTask(null)} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
       {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} onLogout={() => void doLogout()} />}

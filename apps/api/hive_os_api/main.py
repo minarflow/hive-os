@@ -83,6 +83,19 @@ class InviteRedeemRequest(BaseModel):
     profile_slug: str = "default"
 
 
+class TaskCreateRequest(BaseModel):
+    title: str = Field(min_length=1)
+    description: str = ""
+    assignee: str | None = None
+
+
+class TaskUpdateRequest(BaseModel):
+    title: str | None = None
+    description: str | None = None
+    status: str | None = Field(default=None, pattern="^(todo|doing|review|done)$")
+    assignee: str | None = None
+
+
 class CommandPolicyRequest(BaseModel):
     command: str = Field(min_length=1)
     project_slug: str
@@ -292,6 +305,9 @@ class RunWorker:
                 self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
                 self.add_event(run_id, session_id, project_id, "run.completed", {"stop_reason": stop_reason})
                 db.execute("UPDATE runs SET status = 'completed', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
+                trow = db.execute("SELECT task_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+                if trow and trow["task_id"]:
+                    db.execute("UPDATE tasks SET status = 'review', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'done'", (trow["task_id"],))
         except asyncio.TimeoutError:
             with self.app.state.db_lock:
                 self.add_event(run_id, session_id, project_id, "run.failed", {"error": "Hermes runner timed out"})
@@ -499,7 +515,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         return {"id": row["id"], "slug": row["slug"], "name": row["name"], "default_model": row["default_model"], "is_default": bool(row["is_default"]), "hermes_home": row["hermes_home"]}
 
     def session_payload(row: dict[str, Any]) -> dict[str, Any]:
-        return {"id": row["id"], "title": row["title"], "runner_id": row["runner_id"], "profile_id": row["profile_id"], "profile_slug": row.get("profile_slug"), "profile_name": row.get("profile_name"), "project_slug": row.get("project_slug"), "project_name": row.get("project_name"), "visibility": row["visibility"], "updated_at": row["updated_at"]}
+        return {"id": row["id"], "title": row["title"], "runner_id": row["runner_id"], "profile_id": row["profile_id"], "profile_slug": row.get("profile_slug"), "profile_name": row.get("profile_name"), "project_slug": row.get("project_slug"), "project_name": row.get("project_name"), "visibility": row["visibility"], "updated_at": row["updated_at"], "task_id": row.get("task_id"), "task_title": row.get("task_title")}
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -697,6 +713,78 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             logging.getLogger("hive_os.provisioning").exception("invite redeem provisioning failed")
         token = create_token(created["id"])
         return {"token": token, "user": public_user(created), "profile": profile_payload(profile)}
+
+    # ── Tasks (kanban + a dedicated agent thread per task) ───────────
+    def task_payload(row: dict[str, Any]) -> dict[str, Any]:
+        return {"id": row["id"], "project_slug": row.get("project_slug"), "session_id": row["session_id"], "title": row["title"], "description": row["description"], "status": row["status"], "assignee": row["assignee"], "created_at": row["created_at"], "updated_at": row["updated_at"]}
+
+    def _task_for_user(task_id: int, user: dict[str, Any]) -> dict[str, Any]:
+        row = db().execute("SELECT t.*, p.slug AS project_slug FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = ?", (task_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="task not found")
+        visible_project(row["project_slug"], user)  # ACL: must be a project member
+        return dict(row)
+
+    def _task_audit(user: dict[str, Any], action: str, task_id: int) -> None:
+        db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, ?, 'task', ?)", (user["id"], action, str(task_id)))
+
+    @app.get("/api/projects/{slug}/tasks")
+    def list_tasks(slug: str, user: dict[str, Any] = Depends(current_user)):
+        project = visible_project(slug, user)
+        rows = db().execute("SELECT t.*, ? AS project_slug FROM tasks t WHERE t.project_id = ? ORDER BY t.updated_at DESC, t.id DESC", (slug, project["id"])).fetchall()
+        return {"tasks": [task_payload(dict(r)) for r in rows]}
+
+    @app.post("/api/projects/{slug}/tasks", status_code=201)
+    def create_task(slug: str, payload: TaskCreateRequest, user: dict[str, Any] = Depends(current_user)):
+        project = visible_project(slug, user)
+        profile = profile_for_user(None, user)
+        title = payload.title.strip()
+        cur = db().execute(
+            "INSERT INTO tasks(project_id, title, description, assignee, created_by) VALUES (?, ?, ?, ?, ?)",
+            (project["id"], title, payload.description or "", payload.assignee, user["id"]),
+        )
+        task_id = int(cur.lastrowid)
+        scur = db().execute(
+            "INSERT INTO sessions(title, project_id, owner_user_id, profile_id, runner_id, visibility, task_id) VALUES (?, ?, ?, ?, 'hermes', 'project', ?)",
+            (title[:80], project["id"], user["id"], profile["id"], task_id),
+        )
+        db().execute("UPDATE tasks SET session_id = ? WHERE id = ?", (scur.lastrowid, task_id))
+        _task_audit(user, "task.create", task_id)
+        row = db().execute("SELECT t.*, ? AS project_slug FROM tasks t WHERE t.id = ?", (slug, task_id)).fetchone()
+        return task_payload(dict(row))
+
+    @app.get("/api/tasks/{task_id}")
+    def get_task(task_id: int, user: dict[str, Any] = Depends(current_user)):
+        return task_payload(_task_for_user(task_id, user))
+
+    @app.patch("/api/tasks/{task_id}")
+    def update_task(task_id: int, payload: TaskUpdateRequest, user: dict[str, Any] = Depends(current_user)):
+        _task_for_user(task_id, user)
+        fields: list[str] = []
+        vals: list[Any] = []
+        if payload.title is not None and payload.title.strip():
+            fields.append("title = ?"); vals.append(payload.title.strip())
+        if payload.description is not None:
+            fields.append("description = ?"); vals.append(payload.description)
+        if payload.status is not None:
+            fields.append("status = ?"); vals.append(payload.status)
+        if payload.assignee is not None:
+            fields.append("assignee = ?"); vals.append(payload.assignee or None)
+        if fields:
+            fields.append("updated_at = CURRENT_TIMESTAMP")
+            db().execute(f"UPDATE tasks SET {', '.join(fields)} WHERE id = ?", (*vals, task_id))
+            _task_audit(user, "task.update", task_id)
+        row = db().execute("SELECT t.*, p.slug AS project_slug FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = ?", (task_id,)).fetchone()
+        return task_payload(dict(row))
+
+    @app.delete("/api/tasks/{task_id}")
+    def delete_task(task_id: int, user: dict[str, Any] = Depends(current_user)):
+        task = _task_for_user(task_id, user)
+        db().execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+        if task["session_id"]:
+            db().execute("DELETE FROM sessions WHERE id = ?", (task["session_id"],))
+        _task_audit(user, "task.delete", task_id)
+        return {"ok": True, "id": task_id}
 
     @app.get("/api/profiles")
     def list_profiles(user: dict[str, Any] = Depends(current_user)):
@@ -978,10 +1066,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     def list_sessions(user: dict[str, Any] = Depends(current_user)):
         rows = db().execute(
             """
-            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name
+            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name, t.title AS task_title
             FROM sessions s
             LEFT JOIN projects p ON p.id = s.project_id
             LEFT JOIN profiles pr ON pr.id = s.profile_id
+            LEFT JOIN tasks t ON t.id = s.task_id
             WHERE s.owner_user_id = ?
             ORDER BY s.updated_at DESC, s.id DESC
             """,
@@ -1003,8 +1092,8 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         )
         row = db().execute(
             """
-            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name
-            FROM sessions s LEFT JOIN projects p ON p.id=s.project_id LEFT JOIN profiles pr ON pr.id=s.profile_id WHERE s.id=?
+            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name, t.title AS task_title
+            FROM sessions s LEFT JOIN projects p ON p.id=s.project_id LEFT JOIN profiles pr ON pr.id=s.profile_id LEFT JOIN tasks t ON t.id=s.task_id WHERE s.id=?
             """,
             (cur.lastrowid,),
         ).fetchone()
@@ -1019,8 +1108,8 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         db().execute("UPDATE sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (title, session_id))
         row = db().execute(
             """
-            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name
-            FROM sessions s LEFT JOIN projects p ON p.id=s.project_id LEFT JOIN profiles pr ON pr.id=s.profile_id WHERE s.id=?
+            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name, t.title AS task_title
+            FROM sessions s LEFT JOIN projects p ON p.id=s.project_id LEFT JOIN profiles pr ON pr.id=s.profile_id LEFT JOIN tasks t ON t.id=s.task_id WHERE s.id=?
             """,
             (session_id,),
         ).fetchone()
@@ -1062,6 +1151,8 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         run_id = int(cur.lastrowid)
         app.state.worker.add_event(run_id, session_id, session["project_id"], "run.queued", {"runner": "hermes"})
         db().execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
+        if session.get("task_id"):
+            db().execute("UPDATE tasks SET status = 'doing', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'done'", (session["task_id"],))
         return {"run_id": run_id, "session_id": session_id, "status": "queued"}
 
     @app.post("/api/chat/send", status_code=202)
