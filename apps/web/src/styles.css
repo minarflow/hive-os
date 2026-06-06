@@ -636,3 +636,12 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 
 @media (max-width: 900px) { .kanban { grid-template-columns: repeat(2, 1fr); } }
 @media (max-width: 560px) { .kanban { grid-template-columns: 1fr; } .task-status-seg { display: none; } }
+
+/* Modal (reusable) */
+.modal-scrim { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: var(--ui-scrim); backdrop-filter: blur(3px); padding: 20px; }
+.modal-card { width: 100%; max-width: 460px; display: grid; gap: 12px; background: var(--ui-surface); border: 1px solid var(--ui-stroke-secondary); border-radius: 16px; padding: 20px; box-shadow: var(--shadow-composer); }
+.modal-card h3 { margin: 0 0 2px; font-size: 1.05rem; }
+.modal-card label { display: grid; gap: 6px; font-size: .82rem; font-weight: 600; color: var(--ui-text-secondary); }
+.modal-card input, .modal-card textarea { border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-bg-editor); color: var(--ui-text-primary); padding: 9px 11px; font-size: .9rem; font-weight: 400; resize: vertical; }
+.modal-card input:focus, .modal-card textarea:focus { outline: none; border-color: var(--ui-accent); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

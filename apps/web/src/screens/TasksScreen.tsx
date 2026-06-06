@@ -28,6 +28,8 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
   const [slug, setSlug] = React.useState(activeProject?.slug || projects[0]?.slug || '')
   const [tasks, setTasks] = React.useState<Task[]>([])
   const [selected, setSelected] = React.useState<Task | null>(null)
+  const [creating, setCreating] = React.useState(false)
+  const [form, setForm] = React.useState({ title: '', description: '', assignee: '' })
   const [error, setError] = React.useState('')
   const project = projects.find(p => p.slug === slug) || null
 
@@ -44,10 +46,13 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
     getTask(token, pendingTaskId).then(t => { if (t.project_slug) setSlug(t.project_slug); setSelected(t) }).catch(e => setError(String(e))).finally(() => onPendingConsumed?.())
   }, [pendingTaskId])
 
-  async function create() {
-    const title = window.prompt('New task title')?.trim()
-    if (!title || !project) return
-    try { const t = await createTask(token, project.slug, { title }); await reload(); setSelected(t) } catch (e) { setError(String(e)) }
+  async function submitCreate(e: React.FormEvent) {
+    e.preventDefault()
+    if (!form.title.trim() || !project) return
+    try {
+      const t = await createTask(token, project.slug, { title: form.title.trim(), description: form.description.trim() || undefined, assignee: form.assignee.trim() || undefined })
+      setCreating(false); setForm({ title: '', description: '', assignee: '' }); await reload(); setSelected(t)
+    } catch (e2) { setError(String(e2)) }
   }
   async function setStatus(t: Task, status: TaskStatus) {
     try { const u = await updateTask(token, t.id, { status }); setTasks(cur => cur.map(x => x.id === t.id ? u : x)); if (selected?.id === t.id) setSelected(u) } catch (e) { setError(String(e)) }
@@ -64,8 +69,15 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
   return <section className="tasks-view">
     <div className="tasks-head">
       <select className="ui-select" value={slug} onChange={e => setSlug(e.target.value)}>{projects.map(p => <option key={p.slug} value={p.slug}>{clean(p.name)}</option>)}</select>
-      <button className="primary-button" onClick={() => void create()}>New task</button>
+      <button className="primary-button" onClick={() => setCreating(true)}>New task</button>
     </div>
+    {creating && <div className="modal-scrim" onClick={() => setCreating(false)}><form className="modal-card" onClick={e => e.stopPropagation()} onSubmit={submitCreate}>
+      <h3>New task</h3>
+      <label>Title<input autoFocus value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="e.g. Fix login bug" /></label>
+      <label>Description <span className="muted">(optional)</span><textarea rows={3} value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What needs doing / context for the agent" /></label>
+      <label>Assignee <span className="muted">(optional)</span><input value={form.assignee} onChange={e => setForm({ ...form, assignee: e.target.value })} placeholder="user or agent" /></label>
+      <div className="modal-actions"><button type="button" className="ghost-button" onClick={() => setCreating(false)}>Cancel</button><button type="submit" className="primary-button" disabled={!form.title.trim()}>Create task</button></div>
+    </form></div>}
     {error && <div className="error-bar">{error}</div>}
     <div className="kanban">{COLUMNS.map(col => {
       const items = tasks.filter(t => t.status === col.key)
