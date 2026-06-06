@@ -18,7 +18,7 @@ export function useEventStream(token: string, sessionId: number | null, onEvent:
       lastSeq.current = Math.max(lastSeq.current, parsed.seq)
       onEvent(parsed)
     }
-    const types = ['run.queued', 'run.started', 'message.delta', 'message.complete', 'run.completed', 'run.failed', 'run.cancelled', 'warning']
+    const types = ['run.queued', 'run.started', 'message.delta', 'reasoning.delta', 'tool.start', 'tool.complete', 'message.complete', 'run.completed', 'run.failed', 'run.cancelled', 'warning']
     for (const type of types) {
       source.addEventListener(type, event => {
         if (closed) return
