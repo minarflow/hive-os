@@ -263,3 +263,4 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .file-editor textarea { flex: 1; width: 100%; border: 0; padding: 10px; font-family: ui-monospace, monospace; font-size: .85rem; resize: none; box-sizing: border-box; }
 .file-editor-status { padding: 4px 10px; font-size: .75rem; }
 .right-rail { display: flex; flex-direction: column; position: relative; }
+.tree-error { color: #dc2626; font-size: .8rem; padding: 4px 10px; white-space: pre-wrap; }

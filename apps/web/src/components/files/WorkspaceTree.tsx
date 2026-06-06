@@ -4,7 +4,6 @@ import { listTree, mkdir, renamePath, deletePath, writeFile } from '../../api/fi
 import { FileEditor } from './FileEditor'
 
 function Node({ token, slug, dir, depth, onOpen, refreshKey }: { token: string; slug: string; dir: string; depth: number; onOpen: (path: string) => void; refreshKey: number }) {
-  const [open, setOpen] = React.useState(depth === 0)
   const [entries, setEntries] = React.useState<FileEntry[]>([])
   const [loaded, setLoaded] = React.useState(false)
 
@@ -12,7 +11,7 @@ function Node({ token, slug, dir, depth, onOpen, refreshKey }: { token: string; 
     listTree(token, slug, dir).then(b => { setEntries(b.entries); setLoaded(true) }).catch(() => setLoaded(true))
   }, [token, slug, dir])
 
-  React.useEffect(() => { if (open) load() }, [open, load, refreshKey])
+  React.useEffect(() => { load() }, [load, refreshKey])
 
   return <div className="tree-node">
     {entries.map(entry => {
@@ -36,37 +35,43 @@ function Folder({ token, slug, path, name, depth, onOpen, refreshKey }: { token:
 export function WorkspaceTree({ token, project }: { token: string; project: Project | null }) {
   const [refreshKey, setRefreshKey] = React.useState(0)
   const [editing, setEditing] = React.useState<string | null>(null)
+  const [treeError, setTreeError] = React.useState<string | null>(null)
   const refresh = () => setRefreshKey(k => k + 1)
 
   if (!project) return <aside className="right-rail"><div className="rail-card"><p className="muted">Select a project to browse files.</p></div></aside>
 
   async function newFile() {
+    setTreeError(null)
     const name = window.prompt('New file path (relative to project):')
     if (!name) return
-    await writeFile(token, project!.slug, name, '').catch(() => undefined)
+    await writeFile(token, project!.slug, name, '').catch(e => { setTreeError(String(e)); return undefined })
     refresh()
   }
   async function newFolder() {
+    setTreeError(null)
     const name = window.prompt('New folder path:')
     if (!name) return
-    await mkdir(token, project!.slug, name).catch(() => undefined)
+    await mkdir(token, project!.slug, name).catch(e => { setTreeError(String(e)); return undefined })
     refresh()
   }
   async function rename() {
+    setTreeError(null)
     const from = window.prompt('Rename from (path):'); if (!from) return
     const to = window.prompt('Rename to (path):'); if (!to) return
-    await renamePath(token, project!.slug, from, to).catch(() => undefined)
+    await renamePath(token, project!.slug, from, to).catch(e => { setTreeError(String(e)); return undefined })
     refresh()
   }
   async function remove() {
+    setTreeError(null)
     const path = window.prompt('Delete path:'); if (!path) return
     if (!window.confirm(`Delete ${path}? This cannot be undone.`)) return
-    await deletePath(token, project!.slug, path).catch(() => undefined)
+    await deletePath(token, project!.slug, path).catch(e => { setTreeError(String(e)); return undefined })
     refresh()
   }
 
   return <aside className="right-rail">
     <div className="tree-toolbar"><strong>{project.name}</strong><div className="tree-actions"><button title="New file" onClick={() => void newFile()}>＋📄</button><button title="New folder" onClick={() => void newFolder()}>＋📁</button><button title="Rename" onClick={() => void rename()}>✎</button><button title="Delete" onClick={() => void remove()}>🗑</button></div></div>
+    {treeError && <p className="tree-error">{treeError}</p>}
     <div className="tree-scroll"><Node token={token} slug={project.slug} dir="" depth={0} onOpen={setEditing} refreshKey={refreshKey} /></div>
     {editing && <FileEditor token={token} slug={project.slug} path={editing} onClose={() => setEditing(null)} />}
   </aside>
