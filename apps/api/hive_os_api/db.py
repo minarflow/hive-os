@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any
+
+from .profile_seed import seed_hermes_home
 
 SCHEMA = """
 PRAGMA foreign_keys = ON;
@@ -143,7 +146,7 @@ def migrate_existing(conn: sqlite3.Connection) -> None:
     _add_column(conn, "sessions", "visibility", "visibility TEXT NOT NULL DEFAULT 'private'")
 
 
-def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = None, hermes_home_factory: Any | None = None) -> None:
+def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = None, hermes_home_factory: Any | None = None, source_hermes_home: str | None = None) -> None:
     conn.executescript(SCHEMA)
     migrate_existing(conn)
     from .auth import hash_password, iso_now
@@ -169,6 +172,8 @@ def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = 
             if not exists:
                 home = hermes_home_factory(row["username"], "default")
                 Path(home).mkdir(parents=True, exist_ok=True)
+                _source = Path(source_hermes_home) if source_hermes_home else Path(os.path.expanduser("~/.hermes"))
+                seed_hermes_home(_source, Path(home))
                 conn.execute(
                     "INSERT INTO profiles(user_id, slug, name, hermes_home, is_default) VALUES (?, 'default', 'Default', ?, 1)",
                     (row["id"], str(home)),

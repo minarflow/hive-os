@@ -264,7 +264,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.config = cfg
     app.state.db = connect(cfg["database_path"])
     app.state.db_lock = __import__("threading").RLock()
-    init_db(app.state.db, cfg.get("seed_users") or [], lambda username, slug: hermes_home_for(cfg, username, slug))
+    init_db(app.state.db, cfg.get("seed_users") or [], lambda username, slug: hermes_home_for(cfg, username, slug), source_hermes_home=cfg.get("source_hermes_home"))
     app.state.worker = RunWorker(app)
 
     web_dist_path = cfg.get("web_dist_path")

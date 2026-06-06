@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 from typing import Any
@@ -32,7 +33,6 @@ def normalize_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg["workspace_root"] = str(workspace_root)
     cfg["hermes_profiles_root"] = str(Path(cfg.get("hermes_profiles_root") or workspace_root / "hermes-profiles"))
     cfg["projectctl_path"] = str(Path(cfg.get("projectctl_path") or repo_root() / "infra/scripts/hiveosctl"))
-    import os
     cfg["source_hermes_home"] = str(Path(cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")))
     return cfg
 

@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
+from fastapi.testclient import TestClient
+
+from hive_os_api.main import create_app
 from hive_os_api.profile_seed import SEED_FILES, seed_hermes_home
 
 
@@ -50,9 +54,20 @@ def test_seed_missing_source_is_noop(tmp_path):
     assert seed_hermes_home(tmp_path / "nope", target) == []
 
 
-from fastapi.testclient import TestClient
+def test_seed_skips_symlinks(tmp_path):
+    source = tmp_path / "src"
+    source.mkdir()
+    real_file = tmp_path / "real.env"
+    real_file.write_text("SECRET=outside\n", encoding="utf-8")
+    os.symlink(real_file, source / ".env")
 
-from hive_os_api.main import create_app
+    target = tmp_path / "tgt"
+    target.mkdir()
+
+    copied = seed_hermes_home(source, target)
+
+    assert ".env" not in copied
+    assert not (target / ".env").exists()
 
 
 def test_bootstrap_seeds_profile_home_from_source(tmp_path):
@@ -72,3 +87,28 @@ def test_bootstrap_seeds_profile_home_from_source(tmp_path):
 
     seeded = tmp_path / "ws" / "hermes-profiles" / "kuya" / "default" / ".env"
     assert seeded.read_text(encoding="utf-8") == "OPENROUTER_API_KEY=xyz\n"
+
+
+def test_seed_users_seeds_credential_file(tmp_path):
+    """Users pre-seeded via seed_users config also get their credential files."""
+    source = tmp_path / "source-hermes"
+    source.mkdir()
+    (source / ".env").write_text("OPENROUTER_API_KEY=seeded\n", encoding="utf-8")
+
+    app = create_app({
+        "database_path": str(tmp_path / "hive.db"),
+        "workspace_root": str(tmp_path / "ws"),
+        "projectctl_path": "/usr/bin/true",
+        "source_hermes_home": str(source),
+        "start_worker": False,
+        "seed_users": [
+            {"username": "alice", "password": "password123", "role": "member"},
+        ],
+    })
+    # Instantiate the app (which calls init_db with seed_users and hermes_home_factory).
+    with TestClient(app):
+        pass
+
+    seeded = tmp_path / "ws" / "hermes-profiles" / "alice" / "default" / ".env"
+    assert seeded.exists(), "credential file not seeded for seed_users entry"
+    assert seeded.read_text(encoding="utf-8") == "OPENROUTER_API_KEY=seeded\n"

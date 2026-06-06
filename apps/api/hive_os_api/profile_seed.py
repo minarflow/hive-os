@@ -25,7 +25,10 @@ def seed_hermes_home(source: Path, target: Path) -> list[str]:
     for name in SEED_FILES:
         src = source / name
         dst = target / name
-        if src.is_file() and not dst.exists():
-            shutil.copy2(src, dst)
-            copied.append(name)
+        if src.is_file() and not src.is_symlink() and not dst.exists():
+            try:
+                shutil.copy2(src, dst)
+                copied.append(name)
+            except OSError:
+                continue
     return copied
