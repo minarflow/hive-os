@@ -316,3 +316,16 @@ def test_create_shared_project_enrolls_all_and_scaffolds(tmp_path):
     bob_token = client.post("/auth/login", json={"username": "bob", "password": "password123"}).json()["token"]
     slugs = {p["slug"] for p in client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]}
     assert "ops" in slugs
+
+
+def test_bootstrap_bad_shared_slug_is_422_not_partial(tmp_path):
+    client = _client(tmp_path)
+    resp = client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default",
+              "team_name": "Linc", "shared_project": {"slug": "Bad Slug!", "name": "X"}},
+    )
+    assert resp.status_code == 422  # rejected before any DB write
+    # bootstrap is still possible (no half-created admin locking it out)
+    assert client.get("/api/setup/status").json()["bootstrap_required"] is True
