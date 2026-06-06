@@ -109,6 +109,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
   metadata TEXT NOT NULL DEFAULT '{}',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_owner ON sessions(owner_user_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status, id);
