@@ -3,7 +3,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 API_DIR="$ROOT/apps/api"
 WEB_DIR="$ROOT/apps/web"
-DEV_ROOT="${HIVEOS_DEV_ROOT:-$API_DIR/.dev/runtime}"
+DEV_ROOT="${HIVEOS_DEV_ROOT:-$HOME/.local/share/hive-os-dev}"
 
 command -v uv >/dev/null 2>&1 || { echo 'uv is required' >&2; exit 1; }
 command -v npm >/dev/null 2>&1 || { echo 'npm is required' >&2; exit 1; }
@@ -12,7 +12,7 @@ mkdir -p "$DEV_ROOT"
 ( cd "$API_DIR" && uv sync >/dev/null )
 ( cd "$WEB_DIR" && npm install >/dev/null )
 
-export HIVEOS_DB_PATH="${HIVEOS_DB_PATH:-$API_DIR/.dev/hive-os-dev.db}"
+export HIVEOS_DB_PATH="${HIVEOS_DB_PATH:-$DEV_ROOT/hive-os-dev.db}"
 export HIVEOS_WORKSPACE_ROOT="${HIVEOS_WORKSPACE_ROOT:-$DEV_ROOT}"
 export HIVEOS_PROJECTCTL_COMMAND="${HIVEOS_PROJECTCTL_COMMAND:-/usr/bin/true}"
 export HIVEOS_WEB_DIST="${HIVEOS_WEB_DIST:-$WEB_DIR/dist}"
