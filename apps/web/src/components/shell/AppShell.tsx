@@ -84,12 +84,7 @@ export function AppShell(props: {
       <div className="resize-handle resize-left" style={{ left: 'var(--left-w)' }} onMouseDown={startResize('left')} role="separator" aria-label="Resize sidebar" />
       {drawerOpen && <button aria-label="Close menu" className="drawer-scrim" onClick={() => setDrawerOpen(false)} />}
       <main className="main-pane">
-        <header className="main-header">
-          <div className="header-title"><h2>{props.activeProject?.name || 'Team workspace'}</h2></div>
-          <div className="header-right">
-            <button className="icon-button panel-toggle rail-toggle" onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel"><IconPanelRight size={18} /></button>
-          </div>
-        </header>
+        <button className="rail-fab" onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel"><IconPanelRight size={18} /></button>
         {props.children}
       </main>
       <div className="resize-handle resize-right" style={{ right: 'var(--right-w)' }} onMouseDown={startResize('right')} role="separator" aria-label="Resize files panel" />

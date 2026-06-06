@@ -39,6 +39,13 @@ export function WorkspaceTree({ token, project }: { token: string; project: Proj
   const [treeError, setTreeError] = React.useState<string | null>(null)
   const refresh = () => setRefreshKey(k => k + 1)
 
+  // Auto-refresh the tree when a chat run finishes (Hermes may have written files).
+  React.useEffect(() => {
+    const onChange = () => setRefreshKey(k => k + 1)
+    window.addEventListener('hive:files-changed', onChange)
+    return () => window.removeEventListener('hive:files-changed', onChange)
+  }, [])
+
   if (!project) return <aside className="right-rail"><div className="rail-card"><p className="muted">Select a project to browse files.</p></div></aside>
 
   async function newFile() {

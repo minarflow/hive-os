@@ -445,3 +445,15 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .copy-btn { display: inline-flex; align-items: center; gap: 5px; }
 .copy-btn.copied { color: var(--ui-success-strong); border-color: color-mix(in srgb, var(--ui-success) 40%, var(--ui-stroke-secondary)); }
 .copy-btn svg { display: block; }
+
+/* ── Headerless chat: floating files toggle + bottom control dock ──── */
+.main-pane { position: relative; }
+.rail-fab { position: absolute; top: 12px; right: 14px; z-index: 6; display: inline-grid; place-items: center; width: 34px; height: 34px; border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: color-mix(in srgb, var(--ui-surface) 78%, transparent); color: var(--ui-text-secondary); backdrop-filter: blur(8px); }
+.rail-fab:hover { color: var(--ui-text-primary); background: var(--ui-surface); }
+
+.chat-dock { width: min(860px, calc(100% - 34px)); margin: 0 auto; }
+.chat-dock .composer { width: 100%; margin: 0 0 16px; }
+.chat-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 6px 2px 8px; }
+.chat-controls .toolbar-control { display: flex; align-items: center; gap: 6px; color: var(--ui-text-secondary); font-size: .84rem; }
+.chat-controls select { border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 6px 9px; font-size: .82rem; }
+@media (max-width: 767px) { .rail-fab { display: none; } }
