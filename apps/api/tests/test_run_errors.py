@@ -2,89 +2,80 @@ from __future__ import annotations
 
 import asyncio
 
-from hive_os_api.main import create_app, RunWorker
+from fastapi.testclient import TestClient
+
+from hive_os_api.main import create_app
 
 
-def test_failed_run_stores_error_text_not_no_output(tmp_path, monkeypatch):
+class FakeAcpProcess:
+    def __init__(self, behavior: str):
+        self.behavior = behavior
+
+    async def load_session(self, session_id, cwd):
+        raise Exception("not loadable")  # force a fresh new_session
+
+    async def new_session(self, cwd):
+        return "acp-test-1"
+
+    async def prompt(self, session_id, text, on_update, timeout=600):
+        if self.behavior == "fail":
+            raise Exception("boom from runner")
+        if self.behavior == "stream":
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "hello world"}})
+        return "end_turn"
+
+    def cancel(self, session_id):
+        pass
+
+
+class FakeAcpManager:
+    def __init__(self, behavior: str):
+        self.behavior = behavior
+
+    async def get(self, hermes_home):
+        return FakeAcpProcess(self.behavior)
+
+    async def shutdown(self):
+        pass
+
+
+def _setup(tmp_path, behavior):
     app = create_app({
         "database_path": str(tmp_path / "hive.db"),
         "workspace_root": str(tmp_path / "ws"),
         "projectctl_path": "/usr/bin/true",
         "start_worker": False,
     })
-    from fastapi.testclient import TestClient
+    app.state.acp_manager = FakeAcpManager(behavior)
     client = TestClient(app)
     token = client.post("/api/setup/bootstrap", json={"username": "kuya", "password": "password123", "profile_name": "Default", "profile_slug": "default"}).json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
     session = client.post("/api/sessions", headers=headers, json={"title": "x"}).json()
     client.post(f"/api/sessions/{session['id']}/runs", headers=headers, json={"message": "hi"})
 
-    worker = app.state.worker
-
-    async def fake_subprocess(*args, **kwargs):
-        class P:
-            pid = 4242
-            returncode = 1
-            stdout = None
-            stderr = None
-            async def wait(self):
-                return 1
-        return P()
-
-    monkeypatch.setattr("hive_os_api.main.asyncio.create_subprocess_exec", fake_subprocess)
-
     async def run_once():
-        run = worker.claim_run()
+        run = app.state.worker.claim_run()
         assert run is not None
-        await worker.execute_run(run)
+        await app.state.worker.execute_run(run)
 
     asyncio.run(run_once())
+    return client, headers, session
 
+
+def test_failed_run_stores_error_message(tmp_path):
+    client, headers, session = _setup(tmp_path, "fail")
     msgs = client.get(f"/api/sessions/{session['id']}/messages", headers=headers).json()["messages"]
-    assert any(m["role"] == "error" for m in msgs)
-    last = [m for m in msgs if m["role"] == "error"][-1]
-    assert last["content"].startswith("Run failed")
-
-
-def test_successful_empty_output_is_not_a_failure(tmp_path, monkeypatch):
-    app = create_app({
-        "database_path": str(tmp_path / "hive.db"),
-        "workspace_root": str(tmp_path / "ws"),
-        "projectctl_path": "/usr/bin/true",
-        "start_worker": False,
-    })
-    from fastapi.testclient import TestClient
-    client = TestClient(app)
-    token = client.post("/api/setup/bootstrap", json={"username": "kuya", "password": "password123", "profile_name": "Default", "profile_slug": "default"}).json()["token"]
-    headers = {"Authorization": f"Bearer {token}"}
-    session = client.post("/api/sessions", headers=headers, json={"title": "y"}).json()
-    client.post(f"/api/sessions/{session['id']}/runs", headers=headers, json={"message": "hello"})
-
-    worker = app.state.worker
-
-    async def fake_subprocess_ok(*args, **kwargs):
-        class P:
-            pid = 5050
-            returncode = 0
-            stdout = None
-            stderr = None
-            async def wait(self):
-                return 0
-        return P()
-
-    monkeypatch.setattr("hive_os_api.main.asyncio.create_subprocess_exec", fake_subprocess_ok)
-
-    async def run_once():
-        run = worker.claim_run()
-        assert run is not None
-        await worker.execute_run(run)
-
-    asyncio.run(run_once())
-
-    msgs = client.get(f"/api/sessions/{session['id']}/messages", headers=headers).json()["messages"]
-    assert any(m["role"] == "assistant" for m in msgs)
-    last = [m for m in msgs if m["role"] == "assistant"][-1]
-    assert last["content"] == "Hermes exited successfully but produced no output."
-
+    err = [m for m in msgs if m["role"] == "error"]
+    assert err and err[-1]["content"].startswith("Run failed")
     events = client.get(f"/api/sessions/{session['id']}/events", headers=headers).json()["events"]
-    assert not any(e["type"] == "run.failed" for e in events)
+    assert any(e["type"] == "run.failed" for e in events)
+
+
+def test_streamed_run_persists_assistant_message_and_acp_session(tmp_path):
+    client, headers, session = _setup(tmp_path, "stream")
+    msgs = client.get(f"/api/sessions/{session['id']}/messages", headers=headers).json()["messages"]
+    asst = [m for m in msgs if m["role"] == "assistant"]
+    assert asst and asst[-1]["content"] == "hello world"
+    events = client.get(f"/api/sessions/{session['id']}/events", headers=headers).json()["events"]
+    assert any(e["type"] == "message.delta" for e in events)
+    assert any(e["type"] == "run.completed" for e in events)

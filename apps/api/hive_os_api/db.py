@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL,
   runner_id TEXT NOT NULL DEFAULT 'hermes',
   visibility TEXT NOT NULL DEFAULT 'private',
+  acp_session_id TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -149,6 +150,7 @@ def migrate_existing(conn: sqlite3.Connection) -> None:
     _add_column(conn, "projects", "visibility", "visibility TEXT NOT NULL DEFAULT 'private'")
     _add_column(conn, "sessions", "profile_id", "profile_id INTEGER REFERENCES profiles(id) ON DELETE SET NULL")
     _add_column(conn, "sessions", "visibility", "visibility TEXT NOT NULL DEFAULT 'private'")
+    _add_column(conn, "sessions", "acp_session_id", "acp_session_id TEXT")
 
 
 def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = None, hermes_home_factory: Any | None = None, source_hermes_home: str | None = None) -> None:

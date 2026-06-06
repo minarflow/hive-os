@@ -19,6 +19,7 @@ from .auth import expiry, hash_password, hash_token, iso_now, new_token, verify_
 from .commands import command_catalog, execute_command
 from .db import connect, init_db
 from .runners import augmented_path, detect_runners
+from .acp import AcpManager
 from .profile_seed import seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
@@ -166,6 +167,7 @@ class RunWorker:
         self.app = app
         self.task: asyncio.Task | None = None
         self.processes: dict[int, asyncio.subprocess.Process] = {}
+        self.active_runs: dict[int, tuple] = {}
         self.stop_event = asyncio.Event()
 
     def start(self) -> None:
@@ -221,92 +223,82 @@ class RunWorker:
         run_id = int(run["id"])
         session_id = int(run["session_id"])
         project_id = run["project_id"]
-        final_chunks: list[str] = []
-        error_chunks: list[str] = []
-        env = os.environ.copy()
-        env["HERMES_HOME"] = run["hermes_home"] or ""
-        env["PATH"] = augmented_path(env.get("PATH"))
-        Path(env["HERMES_HOME"]).mkdir(parents=True, exist_ok=True)
+        hermes_home = run["hermes_home"] or ""
         cwd = str(Path(cfg["workspace_root"]) / "scratch")
         if project_id:
             row = db.execute("SELECT path FROM projects WHERE id = ?", (project_id,)).fetchone()
-            if row:
+            if row and row["path"]:
                 cwd = row["path"]
         Path(cwd).mkdir(parents=True, exist_ok=True)
-        cmd = ["hermes", "-z", run["prompt"], "--ignore-rules", "-t", ""]
-        if run["model"]:
-            cmd.extend(["--model", run["model"]])
-        timeout = int(cfg.get("run_timeout_seconds") or 300)
+
+        chunks: list[str] = []
+
+        def on_update(u: dict[str, Any]) -> None:
+            kind = u.get("sessionUpdate")
+            if kind == "agent_message_chunk":
+                text = (u.get("content") or {}).get("text", "")
+                if text:
+                    chunks.append(text)
+                    with self.app.state.db_lock:
+                        self.add_event(run_id, session_id, project_id, "message.delta", {"text": text})
+            elif kind == "agent_thought_chunk":
+                text = (u.get("content") or {}).get("text", "")
+                if text:
+                    with self.app.state.db_lock:
+                        self.add_event(run_id, session_id, project_id, "reasoning.delta", {"text": text})
+            elif kind == "tool_call":
+                with self.app.state.db_lock:
+                    self.add_event(run_id, session_id, project_id, "tool.start", {"id": u.get("toolCallId"), "title": u.get("title") or u.get("kind") or "tool"})
+            elif kind == "tool_call_update" and u.get("status") in ("completed", "failed"):
+                with self.app.state.db_lock:
+                    self.add_event(run_id, session_id, project_id, "tool.complete", {"id": u.get("toolCallId"), "status": u.get("status")})
+
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                cwd=cwd,
-                env=env,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            self.processes[run_id] = proc
-            with self.app.state.db_lock:
-                db.execute("UPDATE runs SET pid = ? WHERE id = ?", (proc.pid, run_id))
+            proc = await self.app.state.acp_manager.get(hermes_home)
+            srow = db.execute("SELECT acp_session_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
+            acp_sid = srow["acp_session_id"] if srow else None
+            if acp_sid:
+                try:
+                    await proc.load_session(acp_sid, cwd)
+                except Exception:
+                    acp_sid = None  # stale/unknown session -> start fresh
+            if not acp_sid:
+                acp_sid = await proc.new_session(cwd)
+                with self.app.state.db_lock:
+                    db.execute("UPDATE sessions SET acp_session_id = ? WHERE id = ?", (acp_sid, session_id))
+            self.active_runs[run_id] = (proc, acp_sid)
+            timeout = int(cfg.get("run_timeout_seconds") or 600)
+            stop_reason = await proc.prompt(acp_sid, run["prompt"], on_update, timeout=timeout)
 
-            async def read_stream(stream: asyncio.StreamReader | None, kind: str) -> None:
-                if not stream:
-                    return
-                while True:
-                    line = await stream.readline()
-                    if not line:
-                        break
-                    text = line.decode("utf-8", errors="replace")
-                    if kind == "stdout":
-                        final_chunks.append(text)
-                        with self.app.state.db_lock:
-                            self.add_event(run_id, session_id, project_id, "message.delta", {"text": text})
-                    else:
-                        error_chunks.append(text)
-                        with self.app.state.db_lock:
-                            self.add_event(run_id, session_id, project_id, "warning", {"stream": "stderr", "text": text})
-
-            await asyncio.wait_for(asyncio.gather(read_stream(proc.stdout, "stdout"), read_stream(proc.stderr, "stderr"), proc.wait()), timeout=timeout)
             status_row = db.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()
             if status_row and status_row["status"] == "cancelled":
                 return
-            stdout_text = "".join(final_chunks).strip()
-            stderr_text = "".join(error_chunks).strip()
-            if proc.returncode == 0:
-                answer = stdout_text or "Hermes exited successfully but produced no output."
-                with self.app.state.db_lock:
-                    cur = db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, answer))
-                    db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
-                    self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
-                    self.add_event(run_id, session_id, project_id, "run.completed", {"exit_code": proc.returncode})
-                    db.execute("UPDATE runs SET status = 'completed', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
-            else:
-                detail = stderr_text or stdout_text or "Hermes produced no output."
-                answer = f"Run failed (exit {proc.returncode}): {detail}"[-2000:]
-                with self.app.state.db_lock:
-                    cur = db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'error', ?)", (session_id, answer))
-                    db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
-                    self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
-                    self.add_event(run_id, session_id, project_id, "run.failed", {"exit_code": proc.returncode, "error": detail})
-                    db.execute("UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?", (answer, run_id))
+            answer = "".join(chunks).strip() or "Hermes produced no output."
+            with self.app.state.db_lock:
+                cur = db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, answer))
+                db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
+                self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
+                self.add_event(run_id, session_id, project_id, "run.completed", {"stop_reason": stop_reason})
+                db.execute("UPDATE runs SET status = 'completed', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
         except asyncio.TimeoutError:
-            proc = self.processes.get(run_id)
-            if proc and proc.returncode is None:
-                proc.terminate()
             with self.app.state.db_lock:
                 self.add_event(run_id, session_id, project_id, "run.failed", {"error": "Hermes runner timed out"})
                 db.execute("UPDATE runs SET status = 'failed', error = 'Hermes runner timed out', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
-        except FileNotFoundError:
+        except Exception as exc:
+            detail = str(exc)[-2000:]
             with self.app.state.db_lock:
-                self.add_event(run_id, session_id, project_id, "run.failed", {"error": "hermes binary not found"})
-                db.execute("UPDATE runs SET status = 'failed', error = 'hermes binary not found', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
+                cur = db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'error', ?)", (session_id, f"Run failed: {detail}"))
+                self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": f"Run failed: {detail}"})
+                self.add_event(run_id, session_id, project_id, "run.failed", {"error": detail})
+                db.execute("UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?", (detail, run_id))
         finally:
-            self.processes.pop(run_id, None)
+            self.active_runs.pop(run_id, None)
 
     def cancel(self, run_id: int) -> None:
-        proc = self.processes.get(run_id)
-        if proc and proc.returncode is None:
-            proc.terminate()
+        entry = self.active_runs.get(run_id)
+        if entry:
+            proc, sid = entry
+            proc.cancel(sid)
 
 
 def create_app(config: dict[str, Any] | None = None) -> FastAPI:
@@ -324,6 +316,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             worker.start()
         yield
         await worker.stop()
+        await app.state.acp_manager.shutdown()
 
     app = FastAPI(title="Hive OS API", version="0.2.0", lifespan=lifespan)
     app.state.config = cfg
@@ -331,6 +324,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.db_lock = __import__("threading").RLock()
     init_db(app.state.db, cfg.get("seed_users") or [], lambda username, slug: hermes_home_for(cfg, username, slug), source_hermes_home=cfg.get("source_hermes_home"))
     app.state.worker = RunWorker(app)
+    app.state.acp_manager = AcpManager()
 
     web_dist_path = cfg.get("web_dist_path")
     if web_dist_path and Path(web_dist_path).exists():
