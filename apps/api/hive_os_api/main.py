@@ -23,8 +23,11 @@ from .profile_seed import seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 from . import fsapi
+logger = logging.getLogger("hive_os.api")
+
 from .provisioning import (
     backfill,
+    enroll_all_users_as_members,
     get_team_name,
     provision_shared_project,
     provision_user_workspace,
@@ -42,7 +45,7 @@ class SharedProjectSpec(BaseModel):
     # Pattern enforced at the request layer so an invalid slug fails as 422 BEFORE
     # setup_bootstrap performs any DB writes (prevents a half-bootstrapped admin).
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-    name: str | None = None
+    name: str | None = Field(default=None, max_length=120)
 
 
 class BootstrapRequest(BaseModel):
@@ -50,7 +53,7 @@ class BootstrapRequest(BaseModel):
     password: str = Field(min_length=8)
     profile_name: str = "Default"
     profile_slug: str = "default"
-    team_name: str | None = None
+    team_name: str | None = Field(default=None, max_length=80)
     shared_project: SharedProjectSpec | None = None
 
 
@@ -75,8 +78,18 @@ class CommandPolicyRequest(BaseModel):
 
 class ProjectCreateRequest(BaseModel):
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
-    name: str
+    name: str = Field(min_length=1, max_length=120)
     visibility: str = Field(default="private", pattern="^(private|shared)$")
+
+    @property
+    def stripped_name(self) -> str:
+        return self.name.strip()
+
+    def model_post_init(self, __context: object) -> None:
+        stripped = self.name.strip()
+        if not stripped:
+            raise ValueError("name must not be empty or whitespace-only")
+        object.__setattr__(self, "name", stripped)
 
 
 class MemberRequest(BaseModel):
@@ -495,11 +508,24 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         # Provision the shared project FIRST so that if the admin's username equals the
         # shared slug, their private workspace correctly falls back to <username>-home.
         shared = None
+        warning = None
         if payload.shared_project:
             shared_name = payload.shared_project.name or team_name
-            shared = provision_shared_project(
-                db(), cfg, validate_slug(payload.shared_project.slug), shared_name, user
-            )
+            try:
+                shared = provision_shared_project(
+                    db(), cfg, validate_slug(payload.shared_project.slug), shared_name, user
+                )
+            except Exception as exc:
+                logger.exception("setup_bootstrap: provision_shared_project failed")
+                try:
+                    db().execute(
+                        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) "
+                        "VALUES (?, 'workspace.provision.error', 'project', ?, ?)",
+                        (user["id"], payload.shared_project.slug, f'{{"error": "{exc}"}}'),
+                    )
+                except Exception:
+                    pass
+                warning = f"shared project could not be created: {exc}"
         provision_user_workspace(db(), cfg, user)
         token = create_token(user["id"])
         return {
@@ -508,6 +534,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             "profile": profile_payload(profile),
             "team_name": team_name,
             "shared_project": project_payload(shared) if shared else None,
+            "warning": warning,
         }
 
     @app.post("/auth/login")
@@ -658,12 +685,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         project_id = cur.lastrowid
         db().execute("INSERT INTO project_members(project_id, user_id, role) VALUES (?, ?, 'owner')", (project_id, user["id"]))
         if payload.visibility == "shared":
-            for row in db().execute("SELECT id FROM users").fetchall():
-                if row["id"] != user["id"]:
-                    db().execute(
-                        "INSERT OR IGNORE INTO project_members(project_id, user_id, role) VALUES (?, ?, 'collaborator')",
-                        (project_id, row["id"]),
-                    )
+            enroll_all_users_as_members(db(), project_id, user["id"])
         db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'project.create', 'project', ?)", (user["id"], payload.slug))
         row = dict(db().execute("SELECT p.*, ? AS owner, 'owner' AS role FROM projects p WHERE p.id = ?", (user["username"], project_id)).fetchone())
         return project_payload(row)

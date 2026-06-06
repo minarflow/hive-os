@@ -14,6 +14,9 @@ def _projects_root(cfg: dict[str, Any]) -> Path:
 
 def scaffold_project_dir(cfg: dict[str, Any], slug: str) -> Path:
     """Create projects/<slug>/ with starter subdirs + README. Idempotent, no ACL."""
+    # Belt-and-suspenders: reject slugs that could escape the projects root.
+    if "/" in slug or "\\" in slug or ".." in slug or slug.startswith("."):
+        raise ValueError(f"unsafe slug: {slug!r}")
     path = _projects_root(cfg) / slug
     path.mkdir(parents=True, exist_ok=True)
     for sub in cfg.get("provision_starter_dirs") or ["wiki", "tasks", "artifacts"]:
@@ -39,19 +42,33 @@ def _audit(conn: sqlite3.Connection, actor_user_id: int | None, action: str, slu
     )
 
 
+def _resolve_private_slug(conn: sqlite3.Connection, user: dict[str, Any]) -> tuple[str, dict[str, Any] | None]:
+    """Return (slug, existing_row_or_None) for the user's private project.
+
+    Invariant: if a row is returned it is guaranteed to be visibility=='private'
+    AND owner_user_id==user['id'], so it is safe to adopt.  If no row is
+    returned the slug is free and a new project should be created there.
+    """
+    base = user["username"]
+    candidates = [base, f"{base}-home", f"{base}-{user['id']}"]
+    for slug in candidates:
+        row = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+        if row is None:
+            return slug, None  # free slug — create new
+        if row["visibility"] == "private" and row["owner_user_id"] == user["id"]:
+            return slug, dict(row)  # this user's own existing private project — adopt
+        # slug is taken by someone else or by a shared project — try next candidate
+    # Extremely unlikely fallback: guaranteed-unique slug
+    return f"{base}-{user['id']}-home", None
+
+
 def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
-    slug = user["username"]
-    existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
-    # Collision is decided by visibility, not owner: a private project's slug is the
-    # username (globally unique), so the only real clash is a shared/team project that
-    # already owns this slug. In that case the user's private project takes -home.
-    if existing and existing["visibility"] != "private":
-        slug = f"{user['username']}-home"
-        existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+    slug, existing = _resolve_private_slug(conn, user)
     if existing:
+        # Only ever reached when the row is verified as this user's own private project.
         scaffold_project_dir(cfg, slug)
         ensure_member(conn, existing["id"], user["id"], "owner")
-        return dict(existing)
+        return existing
     path = str(scaffold_project_dir(cfg, slug))
     cur = conn.execute(
         "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES (?, ?, ?, ?, 'private')",
@@ -61,6 +78,19 @@ def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], use
     ensure_member(conn, project_id, user["id"], "owner")
     _audit(conn, user["id"], "workspace.provision.private", slug)
     return dict(conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone())
+
+
+def enroll_all_users_as_members(conn: sqlite3.Connection, project_id: int, owner_id: int) -> None:
+    """Enroll every user in a project: owner gets 'owner' role, everyone else 'collaborator'.
+
+    Idempotent (INSERT OR IGNORE).  Emits a workspace.provision.member audit entry
+    for each enrollment so the audit trail is consistent regardless of call site.
+    """
+    for row in conn.execute("SELECT id FROM users").fetchall():
+        role = "owner" if row["id"] == owner_id else "collaborator"
+        ensure_member(conn, project_id, row["id"], role)
+        _audit(conn, owner_id, "workspace.provision.member",
+               str(project_id), f'{{"user_id": {row["id"]}, "role": "{role}"}}')
 
 
 def provision_shared_project(conn: sqlite3.Connection, cfg: dict[str, Any], slug: str, name: str, owner: dict[str, Any]) -> dict[str, Any]:
@@ -79,9 +109,7 @@ def provision_shared_project(conn: sqlite3.Connection, cfg: dict[str, Any], slug
         )
         project = dict(conn.execute("SELECT * FROM projects WHERE id = ?", (cur.lastrowid,)).fetchone())
         _audit(conn, owner["id"], "workspace.provision.shared", slug)
-    for row in conn.execute("SELECT id FROM users").fetchall():
-        role = "owner" if row["id"] == owner["id"] else "collaborator"
-        ensure_member(conn, project["id"], row["id"], role)
+    enroll_all_users_as_members(conn, project["id"], owner["id"])
     return project
 
 

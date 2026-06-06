@@ -372,3 +372,223 @@ def test_bootstrap_admin_name_equals_shared_slug(tmp_path):
     bob_token = client.post("/auth/login", json={"username": "bob", "password": "password123"}).json()["token"]
     slugs = {p["slug"] for p in client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]}
     assert "linc" in slugs  # later user enrolled in the shared project
+
+
+# ---------------------------------------------------------------------------
+# FIX 1 — cross-user leak on double slug collision
+# ---------------------------------------------------------------------------
+
+def test_private_project_never_joins_another_users_project(tmp_path):
+    """User B named 'team' must NOT become owner of user A's 'team-home' project."""
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+
+    # User A is named "team-home" and already has their own private project.
+    user_a = add_user(conn, "team-home")
+    proj_a = provisioning.provision_private_project(conn, cfg, user_a)
+    assert proj_a["slug"] == "team-home"
+
+    # A shared project occupies the slug "team" so user B can't use it directly.
+    admin = add_user(conn, "admin", role="environment_admin")
+    conn.execute(
+        "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES ('team', 'Team', '/x', ?, 'shared')",
+        (admin["id"],),
+    )
+
+    # User B is named "team".
+    user_b = add_user(conn, "team")
+    proj_b = provisioning.provision_private_project(conn, cfg, user_b)
+
+    # B must NOT have slug 'team-home' (that belongs to A).
+    assert proj_b["slug"] != "team-home", "B stole A's slug"
+    # B must NOT be a member of A's project.
+    b_in_a = conn.execute(
+        "SELECT COUNT(*) AS c FROM project_members WHERE project_id = ? AND user_id = ?",
+        (proj_a["id"], user_b["id"]),
+    ).fetchone()["c"]
+    assert b_in_a == 0, "B was added as member of A's project (cross-user leak)"
+    # A's project must only have A as member.
+    a_members = conn.execute(
+        "SELECT user_id FROM project_members WHERE project_id = ?", (proj_a["id"],)
+    ).fetchall()
+    assert len(a_members) == 1 and a_members[0]["user_id"] == user_a["id"]
+    # B's project must be owned by B and be private.
+    assert proj_b["owner_user_id"] == user_b["id"]
+    assert proj_b["visibility"] == "private"
+
+
+# ---------------------------------------------------------------------------
+# FIX 2 — bootstrap shared-project failure is non-fatal
+# ---------------------------------------------------------------------------
+
+def test_bootstrap_shared_failure_is_non_fatal(tmp_path, monkeypatch):
+    """If provision_shared_project raises during bootstrap, the response is still 201."""
+    from fastapi.testclient import TestClient
+    from hive_os_api.main import create_app
+    import hive_os_api.main as main_mod
+
+    def boom(*a, **k):
+        raise RuntimeError("disk exploded")
+
+    monkeypatch.setattr(main_mod, "provision_shared_project", boom)
+
+    app = create_app({
+        "database_path": str(tmp_path / "db.sqlite"),
+        "workspace_root": str(tmp_path / "ws"),
+        "hermes_profiles_root": str(tmp_path / "profiles"),
+        "projectctl_path": "/usr/bin/true",
+        "start_worker": False,
+    })
+    client = TestClient(app)
+    resp = client.post(
+        "/api/setup/bootstrap",
+        json={
+            "username": "admin",
+            "password": "password123",
+            "profile_slug": "default",
+            "profile_name": "Default",
+            "team_name": "Linc",
+            "shared_project": {"slug": "linc", "name": "Linc"},
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    # Token must be returned.
+    assert body.get("token")
+    # bootstrap_required must now be false (admin was committed).
+    status_resp = client.get("/api/setup/status")
+    assert status_resp.json()["bootstrap_required"] is False
+    # shared_project must be None (it failed).
+    assert body.get("shared_project") is None
+    # A warning must be present.
+    assert body.get("warning"), f"Expected warning in response, got: {body}"
+
+
+# ---------------------------------------------------------------------------
+# FIX 3 — enroll_all_users_as_members helper used by create_project
+# ---------------------------------------------------------------------------
+
+def test_enroll_all_users_as_members_helper(tmp_path):
+    """enroll_all_users_as_members enrolls all users and emits audit entries."""
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "admin", role="environment_admin")
+    bob = add_user(conn, "bob")
+
+    cur = conn.execute(
+        "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES ('ops', 'Ops', '/x', ?, 'shared')",
+        (admin["id"],),
+    )
+    project_id = cur.lastrowid
+
+    provisioning.enroll_all_users_as_members(conn, project_id, admin["id"])
+
+    members = {
+        r["user_id"]: r["role"]
+        for r in conn.execute(
+            "SELECT user_id, role FROM project_members WHERE project_id = ?", (project_id,)
+        ).fetchall()
+    }
+    assert members[admin["id"]] == "owner"
+    assert members[bob["id"]] == "collaborator"
+
+    actions = [r["action"] for r in conn.execute("SELECT action FROM audit_log").fetchall()]
+    assert "workspace.provision.member" in actions
+
+
+def test_create_shared_project_uses_enroll_helper_audit(tmp_path):
+    """POST /api/projects with shared visibility emits workspace.provision.member audit entries."""
+    client = _client(tmp_path)
+    boot = client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default",
+              "team_name": "Linc", "shared_project": {"slug": "linc", "name": "Linc"}},
+    ).json()
+    token = boot["token"]
+    client.post("/api/users", headers={"Authorization": f"Bearer {token}"},
+                json={"username": "bob", "password": "password123", "role": "member",
+                      "profile_slug": "default", "profile_name": "Default"})
+
+    resp = client.post("/api/projects", headers={"Authorization": f"Bearer {token}"},
+                       json={"slug": "ops", "name": "Ops", "visibility": "shared"})
+    assert resp.status_code == 201, resp.text
+
+    import sqlite3
+    conn = sqlite3.connect(tmp_path / "db.sqlite")
+    conn.row_factory = sqlite3.Row
+    actions = [r["action"] for r in conn.execute("SELECT action FROM audit_log").fetchall()]
+    conn.close()
+    assert "workspace.provision.member" in actions
+
+
+# ---------------------------------------------------------------------------
+# FIX 4 — validate team_name and shared project name lengths
+# ---------------------------------------------------------------------------
+
+def test_bootstrap_team_name_too_long_is_422(tmp_path):
+    """team_name longer than 80 chars must be rejected with 422."""
+    client = _client(tmp_path)
+    resp = client.post(
+        "/api/setup/bootstrap",
+        json={
+            "username": "admin",
+            "password": "password123",
+            "profile_slug": "default",
+            "profile_name": "Default",
+            "team_name": "A" * 81,
+        },
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_project_create_name_too_long_is_422(tmp_path):
+    """Project name longer than 120 chars must be rejected with 422."""
+    client = _client(tmp_path)
+    boot = client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default"},
+    ).json()
+    token = boot["token"]
+    resp = client.post(
+        "/api/projects",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"slug": "ops", "name": "N" * 121, "visibility": "private"},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+def test_project_create_empty_name_is_422(tmp_path):
+    """Project name that is empty (or whitespace-only) must be rejected with 422."""
+    client = _client(tmp_path)
+    boot = client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default"},
+    ).json()
+    token = boot["token"]
+    resp = client.post(
+        "/api/projects",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"slug": "ops", "name": "   ", "visibility": "private"},
+    )
+    assert resp.status_code == 422, resp.text
+
+
+# ---------------------------------------------------------------------------
+# FIX 5 — defense-in-depth in scaffold_project_dir
+# ---------------------------------------------------------------------------
+
+def test_scaffold_rejects_unsafe_slug(tmp_path):
+    """scaffold_project_dir must raise ValueError for slugs containing path-traversal chars."""
+    import pytest
+    cfg = make_cfg(tmp_path)
+    with pytest.raises(ValueError, match="unsafe slug"):
+        provisioning.scaffold_project_dir(cfg, "../evil")
+    with pytest.raises(ValueError, match="unsafe slug"):
+        provisioning.scaffold_project_dir(cfg, "foo/bar")
+    with pytest.raises(ValueError, match="unsafe slug"):
+        provisioning.scaffold_project_dir(cfg, ".hidden")
+    with pytest.raises(ValueError, match="unsafe slug"):
+        provisioning.scaffold_project_dir(cfg, "foo\\bar")
