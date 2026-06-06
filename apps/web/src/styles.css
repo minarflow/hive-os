@@ -32,14 +32,13 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: .6; }
 
 .app-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: 294px minmax(0, 1fr) 292px;
+  grid-template-columns: var(--left-w, 294px) minmax(0, 1fr) var(--right-w, 292px);
   height: 100vh;
   min-height: 0;
   background: var(--ui-chat-surface-background);
-  transition: grid-template-columns 160ms ease-out;
 }
-.app-shell.sidebar-collapsed { grid-template-columns: 68px minmax(0, 1fr) 292px; }
 
 .sidebar {
   min-width: 0;
@@ -200,7 +199,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .center-screen { min-height: 100%; display: grid; place-items: center; align-content: center; gap: 12px; }
 .login-card.wide { width: min(520px, calc(100% - 28px)); }
 
-@media (max-width: 1180px) { .app-shell { grid-template-columns: 280px minmax(0, 1fr); } .app-shell.sidebar-collapsed { grid-template-columns: 68px minmax(0, 1fr); } .right-rail { display: none; } }
+@media (max-width: 1180px) { .app-shell { grid-template-columns: var(--left-w, 280px) minmax(0, 1fr); } .right-rail { display: none; } .resize-right { display: none; } }
 @media (max-width: 767px) {
   .app-shell { display: flex; flex-direction: column; height: 100dvh; }
   .app-shell.sidebar-collapsed { grid-template-columns: none; }
@@ -266,19 +265,15 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .right-rail { display: flex; flex-direction: column; position: relative; }
 .tree-error { color: #dc2626; font-size: .8rem; padding: 4px 10px; white-space: pre-wrap; }
 
-/* Collapsible left/right panes (hide fully) on wide layouts */
-@media (min-width: 768px) {
-  .app-shell.left-hidden > .sidebar { display: none; }
-}
-@media (min-width: 768px) and (max-width: 1180px) {
-  .app-shell.left-hidden { grid-template-columns: 0 minmax(0, 1fr); }
-}
-@media (min-width: 1181px) {
-  .app-shell.left-hidden { grid-template-columns: 0 minmax(0, 1fr) 292px; }
-  .app-shell.right-hidden { grid-template-columns: 294px minmax(0, 1fr) 0; }
-  .app-shell.left-hidden.right-hidden { grid-template-columns: 0 minmax(0, 1fr) 0; }
-  .app-shell.sidebar-collapsed.left-hidden { grid-template-columns: 0 minmax(0, 1fr) 292px; }
-  .app-shell.sidebar-collapsed.right-hidden { grid-template-columns: 68px minmax(0, 1fr) 0; }
-  .app-shell.sidebar-collapsed.left-hidden.right-hidden { grid-template-columns: 0 minmax(0, 1fr) 0; }
+/* Drag-to-resize handles for the left sidebar and right rail (wide layouts) */
+.resize-handle { display: none; position: absolute; top: 0; height: 100%; width: 9px; z-index: 25; cursor: col-resize; touch-action: none; }
+.resize-left { transform: translateX(-50%); }
+.resize-right { transform: translateX(50%); }
+.resize-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--ui-stroke-secondary); transform: translateX(-50%); transition: background .12s, width .12s; }
+.resize-handle:hover::after, .resize-handle:active::after { width: 3px; background: var(--ui-accent, #3b82f6); }
+@media (min-width: 768px) { .resize-left { display: block; } }
+@media (min-width: 1280px) {
+  .resize-right { display: block; }
   .app-shell.right-hidden > .right-rail { display: none; }
+  .app-shell.right-hidden .resize-right { display: none; }
 }
