@@ -576,3 +576,21 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 /* Invite link box */
 .invite-link { display: flex; align-items: center; gap: 8px; margin-top: 12px; border: 1px solid var(--ui-stroke-tertiary); border-radius: 10px; background: var(--ui-surface-subtle); padding: 8px 10px; }
 .invite-link code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: var(--ui-text-secondary); }
+
+/* Artifacts preview */
+.artifact-view { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--ui-bg-editor); }
+.artifact-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 12px; border-bottom: 1px solid var(--ui-stroke-tertiary); }
+.artifact-toolbar > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artifact-toolbar > div { display: flex; gap: 6px; flex: 0 0 auto; }
+.artifact-body { flex: 1; min-height: 0; overflow: auto; }
+.artifact-img { display: grid; place-items: center; padding: 20px; }
+.artifact-img img { max-width: 100%; border-radius: 10px; box-shadow: 0 6px 24px rgba(15,23,42,.14); }
+.artifact-text { margin: 0; padding: 16px 18px; font-family: var(--font-mono); font-size: .82rem; white-space: pre-wrap; word-break: break-word; color: var(--ui-text-secondary); }
+
+/* Tool activity cards (live run) */
+.tool-cards { display: grid; gap: 6px; justify-self: start; max-width: min(680px, 94%); margin: 2px 0; }
+.tool-card { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ui-stroke-tertiary); border-radius: 12px; background: var(--ui-surface-subtle); color: var(--ui-text-secondary); padding: 7px 11px; font-size: .82rem; }
+.tool-card .tool-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; background: var(--ui-accent); animation: pulse 900ms ease-in-out infinite; }
+.tool-card.completed .tool-dot { background: var(--ui-success); animation: none; }
+.tool-card.failed .tool-dot { background: var(--ui-danger); animation: none; }
+.tool-card.completed, .tool-card.failed { opacity: .8; }

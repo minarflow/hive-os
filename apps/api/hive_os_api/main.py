@@ -881,6 +881,17 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         _audit_fs(user, "fs.delete", slug, path)
         return {"ok": True, "path": path}
 
+    @app.get("/api/projects/{slug}/raw")
+    def project_raw(slug: str, path: str, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            target = fsapi.resolve_in_project(root, path)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="not a file")
+        return FileResponse(str(target), filename=target.name)
+
     @app.get("/api/projects/{slug}/wiki/all")
     def project_wiki_all(slug: str, user: dict[str, Any] = Depends(current_user)):
         root = _project_root(slug, user)

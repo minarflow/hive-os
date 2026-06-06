@@ -5,5 +5,5 @@ export type Runner = { id: string; displayName: string; installed: boolean; path
 export type ChatSession = { id: number; title: string; runner_id: string; profile_id?: number | null; profile_slug?: string | null; profile_name?: string | null; project_slug?: string | null; project_name?: string | null; visibility: 'private' | 'project'; updated_at?: string }
 export type ChatMessage = { id?: number; role: 'user' | 'system' | 'assistant' | 'error'; content: string; created_at?: string }
 export type RunEvent = { id: number; seq: number; type: string; run_id: number; session_id: number; project_id?: number | null; payload: Record<string, unknown>; created_at: string }
-export type View = 'chat' | 'projects' | 'wiki' | 'linc-projects' | 'profiles' | 'runners' | 'settings' | 'users'
+export type View = 'chat' | 'projects' | 'wiki' | 'artifacts' | 'linc-projects' | 'profiles' | 'runners' | 'settings' | 'users'
 export type FileEntry = { name: string; type: 'dir' | 'file'; size: number }

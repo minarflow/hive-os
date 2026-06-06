@@ -14,6 +14,24 @@ export function ChatThread({ messages, events, pendingRunId }: { messages: ChatM
   const streaming = live ? events.filter(e => e.type === 'message.delta' && e.run_id === pendingRunId).map(e => String(e.payload.text || '')).join('') : ''
   const waiting = live && !streaming
 
+  // Compact tool-activity cards for the live run (from ACP tool.start/tool.complete).
+  const tools: { id: string; title: string; status: string }[] = []
+  if (live) {
+    const byId = new Map<string, { id: string; title: string; status: string }>()
+    for (const e of events) {
+      if (e.run_id !== pendingRunId) continue
+      if (e.type === 'tool.start') {
+        const id = String(e.payload.id ?? e.id)
+        byId.set(id, { id, title: String(e.payload.title || 'tool'), status: 'running' })
+      } else if (e.type === 'tool.complete') {
+        const id = String(e.payload.id ?? '')
+        const card = byId.get(id)
+        if (card) card.status = String(e.payload.status || 'completed')
+      }
+    }
+    tools.push(...byId.values())
+  }
+
   const scrollRef = React.useRef<HTMLDivElement>(null)
   const pinnedRef = React.useRef(true)
   const [atBottom, setAtBottom] = React.useState(true)
@@ -29,7 +47,7 @@ export function ChatThread({ messages, events, pendingRunId }: { messages: ChatM
   // Follow new content only when the user is already near the bottom.
   React.useLayoutEffect(() => {
     if (pinnedRef.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-  }, [messages, streaming, waiting])
+  }, [messages, streaming, waiting, tools.length])
 
   const scrollToBottom = () => {
     const el = scrollRef.current
@@ -42,6 +60,7 @@ export function ChatThread({ messages, events, pendingRunId }: { messages: ChatM
     <div className="chat-log">
       {empty && <div className="chat-empty"><div className="chat-empty-mark"><IconSparkle size={30} /></div><h3>Start a conversation</h3><p>Ask Hermes anything in this project. Type <code>/</code> for commands.</p></div>}
       {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{ROLE_LABEL[message.role] || 'Hive OS'}</strong>{message.role === 'user' ? <span>{message.content}</span> : <MessageContent content={message.content} />}</div>)}
+      {tools.length > 0 && <div className="tool-cards enter">{tools.map(t => <div key={t.id} className={`tool-card ${t.status}`}><span className="tool-dot" />{t.title}</div>)}</div>}
       {streaming && <div className="chat-line assistant enter"><strong>Hermes</strong><MessageContent content={streaming} /></div>}
       {waiting && <div className="chat-line pending enter"><strong>Hermes</strong><span className="typing"><i /><i /><i /></span></div>}
     </div>

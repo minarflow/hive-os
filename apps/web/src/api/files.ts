@@ -9,6 +9,13 @@ export const listTree = (token: string, slug: string, path = '') =>
 export const projectWikiAll = (token: string, slug: string) =>
   api<{ notes: { path: string; content: string }[] }>(`/api/projects/${slug}/wiki/all`, token)
 
+// Fetch raw file bytes (any type) as an object URL — for image preview / download.
+export async function fetchRawBlob(token: string, slug: string, path: string): Promise<string> {
+  const res = await fetch(`/api/projects/${slug}/raw?path=${q(path)}`, { headers: { Authorization: `Bearer ${token}` } })
+  if (!res.ok) throw new Error('download failed')
+  return URL.createObjectURL(await res.blob())
+}
+
 export const readFile = (token: string, slug: string, path: string) =>
   api<{ path: string; content: string }>(`/api/projects/${slug}/file?path=${q(path)}`, token)
 
