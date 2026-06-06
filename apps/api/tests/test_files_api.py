@@ -48,6 +48,12 @@ def test_traversal_is_rejected(tmp_path):
     assert c.get("/api/projects/demo/tree?path=../..", headers=headers).status_code == 400
 
 
+def test_read_missing_file_returns_400(tmp_path):
+    c = client(tmp_path)
+    headers = setup_project(c, tmp_path)
+    assert c.get("/api/projects/demo/file?path=does-not-exist", headers=headers).status_code == 400
+
+
 def test_non_member_cannot_access(tmp_path):
     c = client(tmp_path)
     headers = setup_project(c, tmp_path)

@@ -80,3 +80,19 @@ def test_resolve_rejects_null_byte(tmp_path):
     root.mkdir()
     with pytest.raises(fsapi.FsError):
         fsapi.resolve_in_project(root, "foo\x00bar")
+
+
+def test_read_file_maps_oserror_to_fserror(tmp_path):
+    import os
+    if os.geteuid() == 0:
+        pytest.skip("chmod-based perm test is no-op as root")
+    root = tmp_path / "proj"
+    root.mkdir()
+    secret = root / "secret.txt"
+    secret.write_text("sensitive", encoding="utf-8")
+    secret.chmod(0o000)
+    try:
+        with pytest.raises(fsapi.FsError):
+            fsapi.read_file(root, "secret.txt")
+    finally:
+        secret.chmod(0o644)

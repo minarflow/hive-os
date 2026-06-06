@@ -60,14 +60,19 @@ def read_file(root: Path, rel: str) -> str:
         return target.read_text(encoding="utf-8")
     except UnicodeDecodeError as exc:
         raise FsError("binary file not supported") from exc
+    except OSError as exc:
+        raise FsError(f"cannot read file: {exc.strerror}") from exc
 
 
 def write_file(root: Path, rel: str, content: str) -> None:
     target = resolve_in_project(root, rel)
     if target.is_dir():
         raise FsError("target is a directory")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content, encoding="utf-8")
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    except OSError as exc:
+        raise FsError(f"cannot write file: {exc.strerror}") from exc
 
 
 def mkdir(root: Path, rel: str) -> None:
@@ -81,7 +86,10 @@ def rename(root: Path, src_rel: str, dst_rel: str) -> None:
     if not src.exists():
         raise FsError("source does not exist")
     dst.parent.mkdir(parents=True, exist_ok=True)
-    src.rename(dst)
+    try:
+        src.rename(dst)
+    except OSError as exc:
+        raise FsError(f"rename failed: {exc.strerror}") from exc
 
 
 def delete(root: Path, rel: str) -> None:
@@ -90,7 +98,10 @@ def delete(root: Path, rel: str) -> None:
         raise FsError("cannot delete project root")
     if not target.exists():
         raise FsError("path does not exist")
-    if target.is_dir():
-        shutil.rmtree(target)
-    else:
-        target.unlink()
+    try:
+        if target.is_dir():
+            shutil.rmtree(target)
+        else:
+            target.unlink()
+    except OSError as exc:
+        raise FsError(f"delete failed: {exc.strerror}") from exc
