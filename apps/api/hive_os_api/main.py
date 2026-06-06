@@ -199,7 +199,7 @@ class RunWorker:
                 await asyncio.sleep(poll)
 
     def claim_run(self) -> dict[str, Any] | None:
-        db = self.app.state.db
+        db = self.app.state.worker_db
         with self.app.state.db_lock:
             row = db.execute("SELECT * FROM runs WHERE status = 'queued' ORDER BY id LIMIT 1").fetchone()
             if not row:
@@ -209,7 +209,7 @@ class RunWorker:
             return dict(db.execute("SELECT * FROM runs WHERE id = ?", (row["id"],)).fetchone())
 
     def add_event(self, run_id: int, session_id: int, project_id: int | None, event_type: str, payload: dict[str, Any]) -> None:
-        db = self.app.state.db
+        db = self.app.state.worker_db
         seq_row = db.execute("SELECT COALESCE(MAX(seq), 0) + 1 AS next_seq FROM events WHERE run_id = ?", (run_id,)).fetchone()
         seq = int(seq_row["next_seq"])
         db.execute(
@@ -218,7 +218,7 @@ class RunWorker:
         )
 
     async def execute_run(self, run: dict[str, Any]) -> None:
-        db = self.app.state.db
+        db = self.app.state.worker_db
         cfg = self.app.state.config
         run_id = int(run["id"])
         session_id = int(run["session_id"])
@@ -323,6 +323,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.db = connect(cfg["database_path"])
     app.state.db_lock = __import__("threading").RLock()
     init_db(app.state.db, cfg.get("seed_users") or [], lambda username, slug: hermes_home_for(cfg, username, slug), source_hermes_home=cfg.get("source_hermes_home"))
+    app.state.worker_db = connect(cfg["database_path"])  # dedicated connection for the async run worker
     app.state.worker = RunWorker(app)
     app.state.acp_manager = AcpManager()
 

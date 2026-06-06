@@ -54,9 +54,14 @@ export function App() {
         const setup = await getSetupStatus()
         setNeedsSetup(setup.bootstrap_required)
         if (token && !setup.bootstrap_required) {
-          const current = await me(token)
-          setUser(current)
-          await refreshAll(token)
+          try {
+            const current = await me(token)
+            setUser(current)
+            await refreshAll(token)
+          } catch {
+            // stale/expired token → drop it and fall back to the login screen
+            localStorage.removeItem('hive-token'); setToken(''); setUser(null)
+          }
         }
       } catch (err) {
         setError(String(err))

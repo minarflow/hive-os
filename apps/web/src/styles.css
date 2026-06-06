@@ -147,7 +147,8 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .chat-line.user { justify-self: end; max-width: min(620px, 88%); background: var(--ui-row-active-background); }
 .chat-line.system, .chat-line.assistant, .chat-line.pending { justify-self: start; max-width: min(680px, 94%); }
 .chat-line.pending { background: var(--ui-surface-subtle); border-style: dashed; }
-.chat-line strong { display: block; margin-bottom: 4px; font-size: .76rem; color: var(--ui-text-tertiary); }
+.chat-line > strong { display: block; margin-bottom: 4px; font-size: .76rem; color: var(--ui-text-tertiary); }
+.md strong { display: inline; font-weight: 700; font-size: inherit; color: inherit; }
 .chat-line span { color: var(--ui-text-secondary); white-space: pre-wrap; }
 .typing-dot { display: inline-block; width: 8px; height: 8px; margin-right: 5px; border-radius: 50%; background: var(--ui-accent); animation: pulse 900ms ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: .35; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
