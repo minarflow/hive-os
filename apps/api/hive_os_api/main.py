@@ -492,13 +492,15 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         profile = create_profile_for(user, payload.profile_slug, payload.profile_name, is_default=True)
         team_name = payload.team_name or cfg.get("default_team_name") or "Team"
         set_team_name(db(), team_name)
-        provision_user_workspace(db(), cfg, user)
+        # Provision the shared project FIRST so that if the admin's username equals the
+        # shared slug, their private workspace correctly falls back to <username>-home.
         shared = None
         if payload.shared_project:
             shared_name = payload.shared_project.name or team_name
             shared = provision_shared_project(
                 db(), cfg, validate_slug(payload.shared_project.slug), shared_name, user
             )
+        provision_user_workspace(db(), cfg, user)
         token = create_token(user["id"])
         return {
             "token": token,

@@ -42,7 +42,10 @@ def _audit(conn: sqlite3.Connection, actor_user_id: int | None, action: str, slu
 def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
     slug = user["username"]
     existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
-    if existing and existing["owner_user_id"] != user["id"]:
+    # Collision is decided by visibility, not owner: a private project's slug is the
+    # username (globally unique), so the only real clash is a shared/team project that
+    # already owns this slug. In that case the user's private project takes -home.
+    if existing and existing["visibility"] != "private":
         slug = f"{user['username']}-home"
         existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
     if existing:
@@ -63,6 +66,10 @@ def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], use
 def provision_shared_project(conn: sqlite3.Connection, cfg: dict[str, Any], slug: str, name: str, owner: dict[str, Any]) -> dict[str, Any]:
     existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
     if existing:
+        # Never adopt a non-shared project (would enroll everyone into someone's
+        # private workspace). Callers must resolve the slug clash instead.
+        if existing["visibility"] != "shared":
+            raise ValueError(f"project slug {slug!r} already exists as a non-shared project")
         project = dict(existing)
     else:
         path = str(scaffold_project_dir(cfg, slug))

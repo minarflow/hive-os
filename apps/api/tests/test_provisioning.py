@@ -329,3 +329,46 @@ def test_bootstrap_bad_shared_slug_is_422_not_partial(tmp_path):
     assert resp.status_code == 422  # rejected before any DB write
     # bootstrap is still possible (no half-created admin locking it out)
     assert client.get("/api/setup/status").json()["bootstrap_required"] is True
+
+
+def test_provision_private_when_owns_shared_same_slug_uses_home(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "linc", role="environment_admin")
+    provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
+    project = provisioning.provision_private_project(conn, cfg, admin)
+    assert project["slug"] == "linc-home"
+    assert project["visibility"] == "private"
+
+
+def test_provision_shared_rejects_non_shared_slug(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    alice = add_user(conn, "alice")
+    provisioning.provision_private_project(conn, cfg, alice)  # owns private slug 'alice'
+    import pytest
+    with pytest.raises(ValueError):
+        provisioning.provision_shared_project(conn, cfg, "alice", "Alice", alice)
+
+
+def test_bootstrap_admin_name_equals_shared_slug(tmp_path):
+    client = _client(tmp_path)
+    boot = client.post("/api/setup/bootstrap", json={
+        "username": "linc", "password": "password123",
+        "profile_slug": "default", "profile_name": "Default",
+        "team_name": "Linc", "shared_project": {"slug": "linc", "name": "Linc"}}).json()
+    assert boot["shared_project"]["slug"] == "linc"
+    assert boot["shared_project"]["visibility"] == "shared"
+    token = boot["token"]
+    import sqlite3
+    c = sqlite3.connect(tmp_path / "db.sqlite"); c.row_factory = sqlite3.Row
+    vis = {r["slug"]: r["visibility"] for r in c.execute("SELECT slug, visibility FROM projects").fetchall()}
+    c.close()
+    assert vis.get("linc") == "shared"
+    assert vis.get("linc-home") == "private"  # admin private took the -home suffix
+    client.post("/api/users", headers={"Authorization": f"Bearer {token}"},
+                json={"username": "bob", "password": "password123", "role": "member",
+                      "profile_slug": "default", "profile_name": "Default"})
+    bob_token = client.post("/auth/login", json={"username": "bob", "password": "password123"}).json()["token"]
+    slugs = {p["slug"] for p in client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]}
+    assert "linc" in slugs  # later user enrolled in the shared project
