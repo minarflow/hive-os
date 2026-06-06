@@ -12,6 +12,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "projectctl_path": None,
     "projectctl_command": None,
     "hermes_profiles_root": None,
+    "source_hermes_home": None,
     "run_worker_poll_interval_ms": 250,
     "run_timeout_seconds": 300,
     "auth_token_ttl_hours": 24 * 14,
@@ -31,6 +32,8 @@ def normalize_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg["workspace_root"] = str(workspace_root)
     cfg["hermes_profiles_root"] = str(Path(cfg.get("hermes_profiles_root") or workspace_root / "hermes-profiles"))
     cfg["projectctl_path"] = str(Path(cfg.get("projectctl_path") or repo_root() / "infra/scripts/hiveosctl"))
+    import os
+    cfg["source_hermes_home"] = str(Path(cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")))
     return cfg
 
 

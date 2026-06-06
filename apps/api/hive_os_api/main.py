@@ -18,6 +18,7 @@ from .auth import expiry, hash_password, hash_token, iso_now, new_token, verify_
 from .commands import command_catalog, execute_command
 from .db import connect, init_db
 from .runners import augmented_path, detect_runners
+from .profile_seed import seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 
@@ -333,6 +334,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         slug = validate_slug(slug)
         home = hermes_home_for(cfg, user["username"], slug)
         home.mkdir(parents=True, exist_ok=True)
+        seed_hermes_home(Path(cfg["source_hermes_home"]), home)
         if is_default:
             db().execute("UPDATE profiles SET is_default = 0 WHERE user_id = ?", (user["id"],))
         cur = db().execute(
