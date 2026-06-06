@@ -26,7 +26,7 @@ export function UsersScreen({ token, user, onRefresh }: { token: string; user: U
     setError(''); setCopied(false)
     try {
       const r = await createInvite(token, role, days * 24)
-      setLink(`${window.location.origin}/?invite=${r.code}`)
+      setLink(r.link || `${window.location.origin}/?invite=${r.code}`)
       await refresh()
     } catch (err) { setError(String(err)) }
   }

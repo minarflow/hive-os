@@ -37,6 +37,7 @@ app = create_app(
         "projectctl_path": str(projectctl),
         "projectctl_command": os.environ.get("HIVEOS_PROJECTCTL_COMMAND", "").split() or None,
         "web_dist_path": str(web_dist),
+        "public_base_url": os.environ.get("HIVEOS_PUBLIC_BASE_URL") or None,
         "run_timeout_seconds": env_int("HIVEOS_RUN_TIMEOUT_SECONDS", 300),
         "run_worker_poll_interval_ms": env_int("HIVEOS_RUN_WORKER_POLL_MS", 250),
         "seed_users": [],

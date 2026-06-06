@@ -23,6 +23,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "auto_provision": True,
     "start_worker": True,
     "web_dist_path": None,
+    "public_base_url": None,  # override for invite links; else auto-detected from Tailscale
 }
 
 

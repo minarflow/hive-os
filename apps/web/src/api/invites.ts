@@ -4,7 +4,7 @@ import type { Profile, User } from '../types'
 export type Invite = { code: string; role: string; expires_at: string | null; used_at: string | null; used_by: string | null }
 
 export const createInvite = (token: string, role: 'member' | 'admin', expires_in_hours: number) =>
-  api<{ code: string; role: string; expires_at: string }>('/api/invites', token, { method: 'POST', body: JSON.stringify({ role, expires_in_hours }) })
+  api<{ code: string; role: string; expires_at: string; link: string | null }>('/api/invites', token, { method: 'POST', body: JSON.stringify({ role, expires_in_hours }) })
 
 export const listInvites = (token: string) => api<{ invites: Invite[] }>('/api/invites', token)
 

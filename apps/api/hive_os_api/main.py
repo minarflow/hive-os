@@ -313,6 +313,18 @@ class RunWorker:
             proc.cancel(sid)
 
 
+def tailscale_base_url() -> str | None:
+    """Best-effort detection of this host's Tailscale MagicDNS HTTPS URL."""
+    try:
+        out = subprocess.run(["tailscale", "status", "--json"], capture_output=True, text=True, timeout=4)
+        if out.returncode != 0:
+            return None
+        name = (json.loads(out.stdout).get("Self") or {}).get("DNSName", "").rstrip(".")
+        return f"https://{name}" if name else None
+    except Exception:
+        return None
+
+
 def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     cfg = normalize_config(config)
 
@@ -632,7 +644,9 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             "INSERT INTO invites(code, role, created_by, expires_at) VALUES (?, ?, ?, ?)",
             (code, payload.role, user["id"], expires),
         )
-        return {"code": code, "role": payload.role, "expires_at": expires}
+        base = cfg.get("public_base_url") or tailscale_base_url()
+        link = f"{base.rstrip('/')}/?invite={code}" if base else None
+        return {"code": code, "role": payload.role, "expires_at": expires, "link": link}
 
     @app.get("/api/invites")
     def list_invites(user: dict[str, Any] = Depends(admin_user)):
