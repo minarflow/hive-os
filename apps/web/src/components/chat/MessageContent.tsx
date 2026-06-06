@@ -1,5 +1,27 @@
+import React from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+
+// A fenced code block with a copy button. The copy reads the rendered text
+// straight off the <pre>, so it works regardless of language/highlighting.
+function CodeBlock({ children }: { children?: React.ReactNode }) {
+  const ref = React.useRef<HTMLPreElement>(null)
+  const [copied, setCopied] = React.useState(false)
+  const copy = async () => {
+    const text = ref.current?.innerText ?? ''
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1400)
+    } catch { /* clipboard unavailable */ }
+  }
+  return (
+    <div className="code-block">
+      <button className="copy-btn" onClick={copy} title="Copy code" aria-label="Copy code">{copied ? '✓ Copied' : 'Copy'}</button>
+      <pre ref={ref}>{children}</pre>
+    </div>
+  )
+}
 
 // Renders assistant/streaming text as GitHub-flavored markdown. react-markdown
 // tolerates partial markdown during streaming (an unclosed code fence renders
@@ -7,7 +29,9 @@ import remarkGfm from 'remark-gfm'
 export function MessageContent({ content }: { content: string }) {
   return (
     <div className="md">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ pre: ({ children }) => <CodeBlock>{children}</CodeBlock> }}>
+        {content}
+      </ReactMarkdown>
     </div>
   )
 }
