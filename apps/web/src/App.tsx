@@ -76,9 +76,9 @@ export function App() {
 
   async function startNewSession() {
     const created = await createSession(token, { title: 'New chat', project_slug: activeProject?.slug || null, profile_id: activeProfile?.id || null })
+    await refreshAll(token)
     setActiveSession(created)
     setView('chat')
-    await refreshAll(token)
   }
 
   async function doLogout() {

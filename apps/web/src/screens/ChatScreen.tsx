@@ -70,8 +70,10 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
           setMessages(current => [...current, { role: 'system', content: `${name} is managed by Hive OS UI, not raw chat.` }])
           return
         }
+        setMessages(current => [...current, { role: 'system', content: `Unknown command ${name}. Type /help to see available commands.` }])
+        return
       }
-      const prompt = trimmed.startsWith('//') ? trimmed.slice(1) : text
+      const prompt = trimmed.startsWith('//') ? trimmed.slice(1) : trimmed
       const session = await ensureSession(prompt)
       setMessages(current => [...current, { role: 'user', content: prompt }])
       const run = await createRun(props.token, session.id, { message: prompt, profile_id: props.activeProfile?.id || null, model: props.activeProfile?.default_model || null })
