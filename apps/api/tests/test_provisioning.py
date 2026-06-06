@@ -67,3 +67,43 @@ def test_ensure_member_idempotent(tmp_path):
         "SELECT COUNT(*) AS c FROM project_members WHERE project_id = ? AND user_id = ?", (pid, user["id"])
     ).fetchone()["c"]
     assert count == 1
+
+
+def test_provision_private_project(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    user = add_user(conn, "alice")
+    project = provisioning.provision_private_project(conn, cfg, user)
+    assert project["slug"] == "alice"
+    assert project["visibility"] == "private"
+    assert project["owner_user_id"] == user["id"]
+    role = conn.execute(
+        "SELECT role FROM project_members WHERE project_id = ? AND user_id = ?", (project["id"], user["id"])
+    ).fetchone()["role"]
+    assert role == "owner"
+    assert (tmp_path / "projects" / "alice" / "wiki").is_dir()
+    actions = [r["action"] for r in conn.execute("SELECT action FROM audit_log").fetchall()]
+    assert "workspace.provision.private" in actions
+
+
+def test_provision_private_idempotent(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    user = add_user(conn, "alice")
+    provisioning.provision_private_project(conn, cfg, user)
+    provisioning.provision_private_project(conn, cfg, user)
+    count = conn.execute("SELECT COUNT(*) AS c FROM projects WHERE owner_user_id = ?", (user["id"],)).fetchone()["c"]
+    assert count == 1
+
+
+def test_provision_private_slug_collision_uses_home_suffix(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "admin", role="environment_admin")
+    conn.execute(
+        "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES ('team', 'Team', '/x', ?, 'shared')",
+        (admin["id"],),
+    )
+    user = add_user(conn, "team")
+    project = provisioning.provision_private_project(conn, cfg, user)
+    assert project["slug"] == "team-home"

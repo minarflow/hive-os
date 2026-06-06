@@ -31,6 +31,35 @@ def ensure_member(conn: sqlite3.Connection, project_id: int, user_id: int, role:
     )
 
 
+def _audit(conn: sqlite3.Connection, actor_user_id, action: str, slug: str, metadata: str = "{}") -> None:
+    conn.execute(
+        "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) "
+        "VALUES (?, ?, 'project', ?, ?)",
+        (actor_user_id, action, slug, metadata),
+    )
+
+
+def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], user: dict[str, Any]) -> dict[str, Any]:
+    slug = user["username"]
+    existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+    if existing and existing["owner_user_id"] != user["id"]:
+        slug = f"{user['username']}-home"
+        existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+    if existing:
+        scaffold_project_dir(cfg, slug)
+        ensure_member(conn, existing["id"], user["id"], "owner")
+        return dict(existing)
+    path = str(scaffold_project_dir(cfg, slug))
+    cur = conn.execute(
+        "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES (?, ?, ?, ?, 'private')",
+        (slug, f"{user['username']} (private)", path, user["id"]),
+    )
+    project_id = cur.lastrowid
+    ensure_member(conn, project_id, user["id"], "owner")
+    _audit(conn, user["id"], "workspace.provision.private", slug)
+    return dict(conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone())
+
+
 def get_team_name(conn: sqlite3.Connection, cfg: dict[str, Any]) -> str:
     row = conn.execute("SELECT value FROM app_settings WHERE key = 'team_name'").fetchone()
     if row and row["value"]:
