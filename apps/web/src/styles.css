@@ -236,3 +236,18 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .chat-line.error { border-left: 3px solid #dc2626; background: #fef2f2; }
 .chat-line.error strong { color: #b91c1c; }
 .chat-line.error span { color: #7f1d1d; white-space: pre-wrap; }
+/* Responsive shell: hide right rail on narrow widths, open as overlay */
+.rail-toggle { display: none; }
+.rail-scrim { display: none; }
+@media (max-width: 1279px) {
+  .app-shell .right-rail { position: fixed; top: 0; right: 0; height: 100%; width: min(360px, 86vw); transform: translateX(100%); transition: transform .2s ease; z-index: 40; box-shadow: -8px 0 24px rgba(0,0,0,.18); }
+  .app-shell.rail-open .right-rail { transform: translateX(0); }
+  .app-shell.rail-open .rail-scrim { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,.35); border: 0; }
+  .rail-toggle { display: inline-flex; }
+}
+@media (max-width: 767px) {
+  .main-pane { min-width: 0; }
+  .chat-stage, .thread, .chat-log { max-width: 100vw; }
+  .composer textarea { width: 100%; box-sizing: border-box; }
+  .toolbar-row { flex-wrap: wrap; gap: 8px; }
+}
