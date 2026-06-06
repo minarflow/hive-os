@@ -6,6 +6,9 @@ import { listAll as wikiListAll, type WikiNoteRaw } from '../api/wiki'
 import { projectWikiAll } from '../api/files'
 import { buildWikiModel } from '../components/wiki/wikiGraph'
 import { WikiSearch } from '../components/wiki/WikiSearch'
+import { IconWiki, IconFolder, IconChevronRight } from '../components/shell/icons'
+
+const cleanName = (name: string) => name.replace(/\s*\(private\)\s*$/i, '')
 
 const WikiGraph = React.lazy(() => import('../components/wiki/WikiGraph').then(m => ({ default: m.WikiGraph })))
 const WikiNote = React.lazy(() => import('../components/wiki/WikiNote').then(m => ({ default: m.WikiNote })))
@@ -18,6 +21,14 @@ export function WikiScreen({ token, projects }: { token: string; projects: Proje
   const [openNote, setOpenNote] = React.useState<string | null>(null)
   const [notes, setNotes] = React.useState<WikiNoteRaw[]>([])
   const [version, setVersion] = React.useState(0)
+  const [pickerOpen, setPickerOpen] = React.useState(false)
+
+  React.useEffect(() => {
+    if (!pickerOpen) return
+    const close = () => setPickerOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [pickerOpen])
 
   const selected = projects.find(p => p.slug === sourceKey) || null
   const fs = React.useMemo(() => (selected ? projectFs(token, selected.slug, 'wiki') : wikiFs(token)), [token, selected?.slug])
@@ -39,14 +50,21 @@ export function WikiScreen({ token, projects }: { token: string; projects: Proje
 
   return <section className="wiki-view">
     <div className="wiki-switch">
-      <label className="wiki-source">
-        <select value={sourceKey} onChange={e => setSourceKey(e.target.value)}>
-          <option value="">📒 My Wiki</option>
-          {projects.length > 0 && <optgroup label="Project wikis">
-            {projects.map(p => <option key={p.slug} value={p.slug}>{p.name} · {p.visibility}</option>)}
-          </optgroup>}
-        </select>
-      </label>
+      <div className="wiki-picker" onClick={e => e.stopPropagation()}>
+        <button className="wiki-picker-btn" onClick={() => setPickerOpen(o => !o)}>
+          <span className="wp-ico">{selected ? <IconFolder size={16} /> : <IconWiki size={16} />}</span>
+          <span className="wp-label">{selected ? cleanName(selected.name) : 'My Wiki'}</span>
+          {selected?.visibility === 'shared' && <span className="wp-badge shared">shared</span>}
+          <span className="wp-caret"><IconChevronRight size={14} /></span>
+        </button>
+        {pickerOpen && <div className="wiki-picker-menu">
+          <button className={`wp-item ${!selected ? 'active' : ''}`} onClick={() => { setSourceKey(''); setPickerOpen(false) }}><IconWiki size={16} /><span className="wp-label">My Wiki</span></button>
+          {projects.length > 0 && <div className="wp-group">Project wikis</div>}
+          {projects.map(p => <button key={p.slug} className={`wp-item ${sourceKey === p.slug ? 'active' : ''}`} onClick={() => { setSourceKey(p.slug); setPickerOpen(false) }}>
+            <IconFolder size={16} /><span className="wp-label">{cleanName(p.name)}</span><span className={`wp-badge ${p.visibility}`}>{p.visibility}</span>
+          </button>)}
+        </div>}
+      </div>
       <div className="seg tabs">
         <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}>Files</button>
         <button className={tab === 'graph' ? 'active' : ''} onClick={() => setTab('graph')}>Graph</button>
