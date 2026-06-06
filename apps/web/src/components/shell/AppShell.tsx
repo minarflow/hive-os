@@ -77,7 +77,7 @@ export function AppShell(props: {
 
   return (
     <div className={`app-shell ${railOpen ? 'rail-open' : ''} ${rightHidden ? 'right-hidden' : ''}`} style={shellStyle}>
-      <MobileTopbar activeProfile={props.activeProfile} activeProject={props.activeProject} onMenu={() => setDrawerOpen(true)} onNewChat={() => props.onSelectView('chat')} />
+      <MobileTopbar activeProfile={props.activeProfile} activeProject={props.activeProject} onMenu={() => setDrawerOpen(true)} onNewChat={() => props.onSelectView('chat')} onFiles={toggleRight} />
       <aside className={`sidebar ${drawerOpen ? 'is-open' : ''}`}>
         <Sidebar {...props} onClose={() => setDrawerOpen(false)} />
       </aside>
