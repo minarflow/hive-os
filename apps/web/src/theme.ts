@@ -4,7 +4,7 @@
 // Both are persisted to localStorage and re-applied at boot (see main.tsx).
 
 export type ThemeKey = 'light' | 'dark' | 'ocean' | 'violet' | 'sunset' | 'forest'
-export type FontKey = 'inter' | 'system' | 'rounded' | 'serif' | 'mono'
+export type FontKey = 'inter' | 'poppins' | 'nunito' | 'merriweather' | 'playfair' | 'robotoslab' | 'jetbrains' | 'oswald' | 'caveat' | 'lobster'
 
 export const THEMES: { key: ThemeKey; label: string; accent: string; surface: string }[] = [
   { key: 'light', label: 'Light', accent: '#0053fd', surface: '#fbfcfe' },
@@ -15,16 +15,31 @@ export const THEMES: { key: ThemeKey; label: string; accent: string; surface: st
   { key: 'forest', label: 'Forest', accent: '#15803d', surface: '#f6fdf8' }
 ]
 
+// 10 popular Google Fonts, each a distinctly different style. Loaded in index.html.
 export const FONTS: { key: FontKey; label: string; stack: string }[] = [
-  { key: 'inter', label: 'Inter', stack: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
-  { key: 'system', label: 'System', stack: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
-  { key: 'rounded', label: 'Rounded', stack: 'ui-rounded, "SF Pro Rounded", "Hiragino Maru Gothic ProN", Quicksand, system-ui, sans-serif' },
-  { key: 'serif', label: 'Serif', stack: 'Georgia, Cambria, "Times New Roman", serif' },
-  { key: 'mono', label: 'Mono', stack: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }
+  { key: 'inter', label: 'Inter', stack: 'Inter, ui-sans-serif, system-ui, sans-serif' },
+  { key: 'poppins', label: 'Poppins', stack: 'Poppins, ui-sans-serif, system-ui, sans-serif' },
+  { key: 'nunito', label: 'Nunito', stack: 'Nunito, ui-sans-serif, system-ui, sans-serif' },
+  { key: 'merriweather', label: 'Merriweather', stack: 'Merriweather, Georgia, serif' },
+  { key: 'playfair', label: 'Playfair Display', stack: '"Playfair Display", Georgia, serif' },
+  { key: 'robotoslab', label: 'Roboto Slab', stack: '"Roboto Slab", Georgia, serif' },
+  { key: 'jetbrains', label: 'JetBrains Mono', stack: '"JetBrains Mono", ui-monospace, monospace' },
+  { key: 'oswald', label: 'Oswald', stack: 'Oswald, "Arial Narrow", sans-serif' },
+  { key: 'caveat', label: 'Caveat', stack: 'Caveat, "Comic Sans MS", cursive' },
+  { key: 'lobster', label: 'Lobster', stack: 'Lobster, "Brush Script MT", cursive' }
+]
+
+export type FontSizeKey = 'xs' | 'sm' | 'base' | 'lg'
+export const FONT_SIZES: { key: FontSizeKey; label: string; px: number }[] = [
+  { key: 'xs', label: 'XS', px: 13 },
+  { key: 'sm', label: 'Small', px: 14 },
+  { key: 'base', label: 'Default', px: 16 },
+  { key: 'lg', label: 'Large', px: 18 }
 ]
 
 const THEME_LS = 'hive.theme'
 const FONT_LS = 'hive.font'
+const SIZE_LS = 'hive.fontSize'
 
 export function getTheme(): ThemeKey {
   const v = localStorage.getItem(THEME_LS)
@@ -47,7 +62,20 @@ export function applyFont(key: FontKey) {
   localStorage.setItem(FONT_LS, key)
 }
 
+export function getFontSize(): FontSizeKey {
+  const v = localStorage.getItem(SIZE_LS)
+  return FONT_SIZES.some(s => s.key === v) ? (v as FontSizeKey) : 'base'
+}
+
+export function applyFontSize(key: FontSizeKey) {
+  const size = FONT_SIZES.find(s => s.key === key) || FONT_SIZES[2]
+  // The whole UI is rem-based, so scaling the root font-size scales everything.
+  document.documentElement.style.fontSize = `${size.px}px`
+  localStorage.setItem(SIZE_LS, key)
+}
+
 export function initAppearance() {
   applyTheme(getTheme())
   applyFont(getFont())
+  applyFontSize(getFontSize())
 }
