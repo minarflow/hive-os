@@ -2,13 +2,14 @@ import React from 'react'
 import { createRun, cancelRun, listEvents } from '../../api/runs'
 import { listMessages } from '../../api/sessions'
 import { useEventStream } from '../../hooks/useEventStream'
-import type { ChatMessage, RunEvent } from '../../types'
+import type { ChatMessage, RunEvent, Task } from '../../types'
 import { ChatThread } from '../chat/ChatThread'
 import { Composer } from '../chat/Composer'
 
-// A focused agent thread bound to one session (the task's thread). Reuses the
-// same streaming + tool-card rendering as the main chat.
-export function TaskChat({ token, sessionId }: { token: string; sessionId: number }) {
+// A focused agent thread bound to one task's session. Reuses the same
+// streaming + tool-card rendering as the main chat.
+export function TaskChat({ token, task }: { token: string; task: Task }) {
+  const sessionId = task.session_id as number
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [events, setEvents] = React.useState<RunEvent[]>([])
   const [busyRun, setBusyRun] = React.useState<number | null>(null)
@@ -55,8 +56,18 @@ export function TaskChat({ token, sessionId }: { token: string; sessionId: numbe
     } catch (e) { setError(String(e)) }
   }
 
+  function kickoff() {
+    const brief = `Task: ${task.title}` + (task.description ? `\n\n${task.description}` : '') +
+      `\n\nKerjakan task ini sampai selesai. Simpan semua hasil/deliverable (file, dokumen, dsb) ke folder \`artifacts/\` di project ini.`
+    void submit(brief)
+  }
+
   return <div className="task-chat">
     <ChatThread messages={messages} events={events} pendingRunId={busyRun} />
+    {messages.length === 0 && !busyRun && <div className="task-kickoff">
+      <div><strong>Belum dikerjakan.</strong><span className="muted"> Mulai agen dengan brief task ini, atau ketik instruksi sendiri.</span></div>
+      <button className="primary-button" onClick={kickoff}>▶ Kerjakan task ini</button>
+    </div>}
     {error && <div className="error-bar">{error}</div>}
     <div className="chat-dock"><div className="chat-controls"><span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(token, busyRun)}>Stop</button>}</div><Composer disabled={false} token={token} onSubmit={submit} /></div>
   </div>

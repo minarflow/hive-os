@@ -20,7 +20,7 @@ function TaskDetail({ token, task, onBack, onStatus, onDelete }: { token: string
       <button className="ghost-button danger" onClick={() => onDelete(task)}>Delete</button>
     </div>
     {task.description && <p className="task-desc">{task.description}</p>}
-    {task.session_id ? <div className="task-thread"><TaskChat token={token} sessionId={task.session_id} /></div> : <p className="muted" style={{ padding: 16 }}>No thread linked.</p>}
+    {task.session_id ? <div className="task-thread"><TaskChat token={token} task={task} /></div> : <p className="muted" style={{ padding: 16 }}>No thread linked.</p>}
   </div>
 }
 

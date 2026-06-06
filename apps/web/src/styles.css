@@ -645,3 +645,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .modal-card input, .modal-card textarea { border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-bg-editor); color: var(--ui-text-primary); padding: 9px 11px; font-size: .9rem; font-weight: 400; resize: vertical; }
 .modal-card input:focus, .modal-card textarea:focus { outline: none; border-color: var(--ui-accent); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+
+/* Task kick-off banner */
+.task-kickoff { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px 10px; padding: 12px 14px; border: 1px dashed var(--ui-stroke-secondary); border-radius: 12px; background: var(--ui-surface-subtle); }
+.task-kickoff .primary-button { flex: 0 0 auto; }
