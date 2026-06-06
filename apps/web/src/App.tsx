@@ -17,6 +17,7 @@ import { ProfilesScreen } from './screens/ProfilesScreen'
 import { RunnersScreen } from './screens/RunnersScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { UsersScreen } from './screens/UsersScreen'
+import { AuditScreen } from './screens/AuditScreen'
 
 export function App() {
   const [booting, setBooting] = React.useState(true)
@@ -142,6 +143,7 @@ export function App() {
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
       {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} onLogout={() => void doLogout()} />}
       {view === 'users' && <UsersScreen token={token} user={user} onRefresh={refreshAll} />}
+      {view === 'audit' && <AuditScreen token={token} user={user} />}
     </AppShell>
   )
 }

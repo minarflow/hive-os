@@ -604,6 +604,15 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         )
         return {"allowed": decision.allowed, "category": decision.category, "reason": decision.reason, "argv": decision.argv}
 
+    @app.get("/api/audit")
+    def list_audit(limit: int = 300, user: dict[str, Any] = Depends(admin_user)):
+        rows = db().execute(
+            "SELECT a.id, a.action, a.target_type, a.target_id, a.metadata, a.created_at, u.username AS actor "
+            "FROM audit_log a LEFT JOIN users u ON u.id = a.actor_user_id ORDER BY a.id DESC LIMIT ?",
+            (max(1, min(limit, 1000)),),
+        ).fetchall()
+        return {"entries": [dict(r) for r in rows]}
+
     @app.get("/api/users")
     def list_users(user: dict[str, Any] = Depends(admin_user)):
         rows = db().execute("SELECT id, username, os_user, role, created_at FROM users ORDER BY username").fetchall()

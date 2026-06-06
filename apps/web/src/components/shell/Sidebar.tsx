@@ -1,6 +1,6 @@
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
-import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts } from './icons'
+import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts, IconAudit } from './icons'
 import { ProjectSwitcher } from './ProjectSwitcher'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
@@ -11,8 +11,10 @@ const nav: NavItem[] = [
   { id: 'wiki', label: 'Wiki', icon: IconWiki },
   { id: 'artifacts', label: 'Artifacts', icon: IconArtifacts },
   { id: 'profiles', label: 'Agents', icon: IconAgents },
-  { id: 'users', label: 'Team Users', icon: IconUsers }
+  { id: 'users', label: 'Team Users', icon: IconUsers },
+  { id: 'audit', label: 'Audit', icon: IconAudit }
 ]
+const ADMIN_ONLY = new Set<View>(['users', 'audit'])
 
 export function Sidebar(props: {
   activeProfile: Profile | null
@@ -34,7 +36,7 @@ export function Sidebar(props: {
 }) {
   return <div className="sidebar-inner">
     <div className="sidebar-head"><div className="brand-row"><span className="brand-dot">H</span><strong>Hive OS</strong></div><div className="sidebar-actions"><button className="icon-button mobile-only" onClick={props.onClose} aria-label="Close menu"><IconClose size={18} /></button></div></div>
-    <section className="nav-group">{nav.filter(item => item.id !== 'users' || props.user.role === 'environment_admin').map(item => {
+    <section className="nav-group">{nav.filter(item => !ADMIN_ONLY.has(item.id) || props.user.role === 'environment_admin').map(item => {
       const Icon = item.icon
       const onClick = () => {
         if (item.action === 'new-chat') props.onNewChat()
