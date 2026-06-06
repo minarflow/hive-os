@@ -43,7 +43,7 @@ def test_run_moves_task_to_review(tmp_path):
         def cancel(self, *a): pass
 
     class FakeMgr:
-        async def get(self, home): return FakeProc()
+        async def get(self, home, cwd=None): return FakeProc()
         async def shutdown(self): pass
 
     app.state.acp_manager = FakeMgr()

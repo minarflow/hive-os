@@ -279,7 +279,7 @@ class RunWorker:
                     self.add_event(run_id, session_id, project_id, "tool.complete", {"id": u.get("toolCallId"), "status": u.get("status")})
 
         try:
-            proc = await self.app.state.acp_manager.get(hermes_home)
+            proc = await self.app.state.acp_manager.get(hermes_home, cwd)
             srow = db.execute("SELECT acp_session_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
             acp_sid = srow["acp_session_id"] if srow else None
             if acp_sid:

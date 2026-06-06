@@ -28,8 +28,9 @@ class AcpError(Exception):
 
 
 class AcpProcess:
-    def __init__(self, hermes_home: str):
+    def __init__(self, hermes_home: str, cwd: str):
         self.hermes_home = hermes_home
+        self.cwd = cwd
         self.proc: asyncio.subprocess.Process | None = None
         self._next_id = 0
         self._pending: dict[int, asyncio.Future] = {}
@@ -46,10 +47,11 @@ class AcpProcess:
         env["PATH"] = augmented_path(env.get("PATH"))
         if self.hermes_home:
             os.makedirs(self.hermes_home, exist_ok=True)
+        os.makedirs(self.cwd, exist_ok=True)
         self.proc = await asyncio.create_subprocess_exec(
             "hermes", "acp", "--accept-hooks",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL, env=env, limit=READ_LIMIT,
+            stderr=asyncio.subprocess.DEVNULL, env=env, cwd=self.cwd, limit=READ_LIMIT,
         )
         self._reader = asyncio.create_task(self._read_loop())
         await self._request("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
@@ -168,20 +170,25 @@ class AcpProcess:
 
 
 class AcpManager:
-    """Owns one AcpProcess per HERMES_HOME, started on demand."""
+    """Owns one AcpProcess per (HERMES_HOME, cwd), started on demand.
+
+    Keyed by cwd because Hermes writes files relative to the agent process's
+    working directory — so each project needs its own process rooted there.
+    """
 
     def __init__(self) -> None:
-        self._procs: dict[str, AcpProcess] = {}
+        self._procs: dict[tuple[str, str], AcpProcess] = {}
         self._lock = asyncio.Lock()
 
-    async def get(self, hermes_home: str) -> AcpProcess:
+    async def get(self, hermes_home: str, cwd: str) -> AcpProcess:
+        key = (hermes_home, cwd)
         async with self._lock:
-            proc = self._procs.get(hermes_home)
+            proc = self._procs.get(key)
             if proc and proc._started:
                 return proc
-            proc = AcpProcess(hermes_home)
+            proc = AcpProcess(hermes_home, cwd)
             await proc.start()
-            self._procs[hermes_home] = proc
+            self._procs[key] = proc
             return proc
 
     async def shutdown(self) -> None:

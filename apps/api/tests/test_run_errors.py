@@ -32,7 +32,7 @@ class FakeAcpManager:
     def __init__(self, behavior: str):
         self.behavior = behavior
 
-    async def get(self, hermes_home):
+    async def get(self, hermes_home, cwd=None):
         return FakeAcpProcess(self.behavior)
 
     async def shutdown(self):
