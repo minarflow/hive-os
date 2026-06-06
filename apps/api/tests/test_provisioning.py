@@ -261,3 +261,37 @@ def test_create_user_provisions_workspace_and_joins_shared(tmp_path):
     slugs = {p["slug"] for p in projects}
     assert "bob" in slugs
     assert "linc" in slugs
+
+
+def test_startup_backfills_existing_users(tmp_path):
+    client = _client(tmp_path)
+    client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default",
+              "team_name": "Linc", "shared_project": {"slug": "linc", "name": "Linc"}},
+    ).json()
+    import sqlite3
+    conn = sqlite3.connect(tmp_path / "db.sqlite")
+    conn.row_factory = sqlite3.Row
+    conn.execute("INSERT INTO users(username, os_user, role, password_hash) VALUES ('legacy','legacy','member','x')")
+    conn.commit()
+    conn.close()
+
+    from fastapi.testclient import TestClient
+    from hive_os_api.main import create_app
+    app2 = create_app({
+        "database_path": str(tmp_path / "db.sqlite"),
+        "workspace_root": str(tmp_path / "ws"),
+        "hermes_profiles_root": str(tmp_path / "profiles"),
+        "projectctl_path": "/usr/bin/true", "start_worker": False,
+    })
+    with TestClient(app2) as client2:
+        status = client2.get("/api/setup/status").json()
+        assert status["team_name"] == "Linc"
+        import sqlite3 as s2
+        c2 = s2.connect(tmp_path / "db.sqlite")
+        c2.row_factory = s2.Row
+        got = c2.execute("SELECT COUNT(*) AS c FROM projects WHERE slug = 'legacy'").fetchone()["c"]
+        c2.close()
+        assert got == 1

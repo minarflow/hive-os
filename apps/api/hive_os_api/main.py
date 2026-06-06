@@ -295,6 +295,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if cfg.get("auto_provision", True):
+            try:
+                backfill(app.state.db, cfg)
+            except Exception:
+                logging.getLogger("hive_os.provisioning").exception("startup backfill failed")
         worker = app.state.worker
         if cfg.get("start_worker", True):
             worker.start()
@@ -465,7 +470,12 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.get("/api/setup/status")
     def setup_status() -> dict[str, Any]:
         count = db().execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
-        return {"bootstrap_required": count == 0, "mode": "team", "hermes_profiles_root": cfg["hermes_profiles_root"]}
+        return {
+            "bootstrap_required": count == 0,
+            "mode": "team",
+            "team_name": get_team_name(db(), cfg),
+            "hermes_profiles_root": cfg["hermes_profiles_root"],
+        }
 
     @app.post("/api/setup/bootstrap", status_code=201)
     def setup_bootstrap(payload: BootstrapRequest) -> dict[str, Any]:
