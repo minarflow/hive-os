@@ -1,12 +1,14 @@
+import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
+import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear } from './icons'
 
-const nav: Array<{ id: View; label: string }> = [
-  { id: 'chat', label: 'Chat' },
-  { id: 'projects', label: 'Projects' },
-  { id: 'profiles', label: 'Agents / Hermes Profiles' },
-  { id: 'runners', label: 'Runners' },
-  { id: 'users', label: 'Team Users' },
-  { id: 'settings', label: 'Settings' }
+type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
+
+const nav: NavItem[] = [
+  { id: 'chat', label: 'New Chat', icon: IconNewChat, action: 'new-chat' },
+  { id: 'projects', label: 'Projects', icon: IconProjects },
+  { id: 'profiles', label: 'Agents', icon: IconAgents },
+  { id: 'users', label: 'Team Users', icon: IconUsers }
 ]
 
 export function Sidebar(props: {
@@ -16,6 +18,7 @@ export function Sidebar(props: {
   currentView: View
   onClose: () => void
   onLogout: () => void
+  onNewChat: () => void
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
   onSelectView: (view: View) => void
@@ -28,9 +31,17 @@ export function Sidebar(props: {
   return <div className="sidebar-inner">
     <div className="sidebar-head"><div className="brand-row"><span className="brand-dot">H</span><strong>Hive OS</strong></div><div className="sidebar-actions"><button className="icon-button mobile-only" onClick={props.onClose}>×</button></div></div>
     <div className="search-pill">Team Mode · Hermes per profile</div>
-    <section className="nav-group"><button className="group-toggle"><span>Workspace</span></button>{nav.filter(item => item.id !== 'users' || props.user.role === 'environment_admin').map(item => <button className={`nav-item ${props.currentView === item.id ? 'active' : ''}`} key={item.id} onClick={() => { props.onSelectView(item.id); props.onClose() }}><span className="nav-icon">⌁</span><strong>{item.label}</strong></button>)}</section>
+    <section className="nav-group"><button className="group-toggle"><span>Workspace</span></button>{nav.filter(item => item.id !== 'users' || props.user.role === 'environment_admin').map(item => {
+      const Icon = item.icon
+      const onClick = () => {
+        if (item.action === 'new-chat') props.onNewChat()
+        else props.onSelectView(item.id)
+        props.onClose()
+      }
+      return <button className={`nav-item ${props.currentView === item.id && !item.action ? 'active' : ''}`} key={item.id} onClick={onClick}><span className="nav-icon"><Icon /></span><strong>{item.label}</strong></button>
+    })}</section>
     <section className="nav-group projects-mini"><button className="group-toggle"><span>Linc-Projects</span><span>{shared.length}</span></button>{shared.length === 0 ? <span className="empty-mini">No shared projects yet</span> : shared.map(project => <button className={`project-row ${props.activeProject?.slug === project.slug ? 'active' : ''}`} key={project.slug} onClick={() => { props.onSelectProject(project); props.onSelectView('chat'); props.onClose() }}><span className="status-dot" /><div><strong>{project.name}</strong><small>{project.slug} · {project.role}</small></div></button>)}</section>
     <section className="nav-group"><button className="group-toggle"><span>Sessions</span><span>{props.sessions.length}</span></button>{props.sessions.slice(0, 12).map(session => <button className={`project-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} onClick={() => { props.onSelectSession(session); props.onClose() }}><span className="status-dot" /><div><strong>{session.title}</strong><small>{session.project_slug || 'no project'} · {session.profile_slug || 'profile'}</small></div></button>)}</section>
-    <div className="user-card"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div><button className="logout-button" onClick={props.onLogout}>Logout</button></div>
+    <div className="user-card"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div><button className={`icon-button settings-button ${props.currentView === 'settings' ? 'active' : ''}`} title="Settings" aria-label="Settings" onClick={() => { props.onSelectView('settings'); props.onClose() }}><IconGear /></button></div>
   </div>
 }

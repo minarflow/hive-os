@@ -98,6 +98,7 @@ export function App() {
       activeSession={activeSession}
       currentView={view}
       onLogout={() => void doLogout()}
+      onNewChat={() => void startNewSession()}
       onSelectProject={project => setActiveProject(project)}
       onSelectSession={session => { setActiveSession(session); setView('chat') }}
       onSelectView={setView}
@@ -112,7 +113,7 @@ export function App() {
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
-      {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} />}
+      {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} onLogout={() => void doLogout()} />}
       {view === 'users' && <UsersScreen token={token} user={user} onRefresh={refreshAll} />}
     </AppShell>
   )

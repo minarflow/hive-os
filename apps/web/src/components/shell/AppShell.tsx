@@ -22,6 +22,7 @@ export function AppShell(props: {
   activeSession: ChatSession | null
   currentView: View
   onLogout: () => void
+  onNewChat: () => void
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
   onSelectView: (view: View) => void
