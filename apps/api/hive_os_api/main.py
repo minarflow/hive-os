@@ -557,6 +557,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail="username already exists") from None
         created = dict(db().execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
         profile = create_profile_for(created, payload.profile_slug, payload.profile_name, is_default=True)
+        provision_user_workspace(db(), cfg, created)
         return {"user": public_user(created), "profile": profile_payload(profile)}
 
     @app.get("/api/profiles")

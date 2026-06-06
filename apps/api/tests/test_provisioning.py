@@ -238,3 +238,26 @@ def test_bootstrap_sets_team_and_shared_project(tmp_path):
     assert body["team_name"] == "Linc"
     assert body["shared_project"]["slug"] == "linc"
     # (the /api/setup/status team_name echo is verified in Task 10)
+
+
+def test_create_user_provisions_workspace_and_joins_shared(tmp_path):
+    client = _client(tmp_path)
+    boot = client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default",
+              "team_name": "Linc", "shared_project": {"slug": "linc", "name": "Linc"}},
+    ).json()
+    token = boot["token"]
+    resp = client.post(
+        "/api/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"username": "bob", "password": "password123", "role": "member",
+              "profile_slug": "default", "profile_name": "Default"},
+    )
+    assert resp.status_code == 201, resp.text
+    bob_token = client.post("/auth/login", json={"username": "bob", "password": "password123"}).json()["token"]
+    projects = client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]
+    slugs = {p["slug"] for p in projects}
+    assert "bob" in slugs
+    assert "linc" in slugs
