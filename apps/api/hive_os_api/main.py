@@ -171,6 +171,7 @@ class RunWorker:
         session_id = int(run["session_id"])
         project_id = run["project_id"]
         final_chunks: list[str] = []
+        error_chunks: list[str] = []
         env = os.environ.copy()
         env["HERMES_HOME"] = run["hermes_home"] or ""
         env["PATH"] = augmented_path(env.get("PATH"))
@@ -210,6 +211,7 @@ class RunWorker:
                         with self.app.state.db_lock:
                             self.add_event(run_id, session_id, project_id, "message.delta", {"text": text})
                     else:
+                        error_chunks.append(text)
                         with self.app.state.db_lock:
                             self.add_event(run_id, session_id, project_id, "warning", {"stream": "stderr", "text": text})
 
@@ -217,18 +219,25 @@ class RunWorker:
             status_row = db.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()
             if status_row and status_row["status"] == "cancelled":
                 return
-            answer = "".join(final_chunks).strip() or "(no output)"
+            stdout_text = "".join(final_chunks).strip()
+            stderr_text = "".join(error_chunks).strip()
+            ok = proc.returncode == 0 and stdout_text
+            if ok:
+                answer = stdout_text
+            else:
+                detail = stderr_text or stdout_text or "Hermes produced no output."
+                answer = f"Run failed (exit {proc.returncode}): {detail}"[-2000:]
             with self.app.state.db_lock:
                 cur = db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, answer))
                 db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
-                if proc.returncode == 0:
+                if ok:
                     self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
                     self.add_event(run_id, session_id, project_id, "run.completed", {"exit_code": proc.returncode})
                     db.execute("UPDATE runs SET status = 'completed', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
                 else:
-                    error = answer[-1200:]
-                    self.add_event(run_id, session_id, project_id, "run.failed", {"exit_code": proc.returncode, "error": error})
-                    db.execute("UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?", (error, run_id))
+                    self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
+                    self.add_event(run_id, session_id, project_id, "run.failed", {"exit_code": proc.returncode, "error": answer})
+                    db.execute("UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?", (answer, run_id))
         except asyncio.TimeoutError:
             proc = self.processes.get(run_id)
             if proc and proc.returncode is None:
