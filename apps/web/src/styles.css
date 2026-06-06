@@ -572,3 +572,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 /* Cards are direct children of the panel — give the panel the gap */
 .project-list-panel { display: flex; flex-direction: column; gap: 12px; }
 .project-list-panel .panel-head { margin-bottom: 4px; }
+
+/* Invite link box */
+.invite-link { display: flex; align-items: center; gap: 8px; margin-top: 12px; border: 1px solid var(--ui-stroke-tertiary); border-radius: 10px; background: var(--ui-surface-subtle); padding: 8px 10px; }
+.invite-link code { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: var(--ui-text-secondary); }

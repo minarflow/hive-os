@@ -71,6 +71,18 @@ class PasswordChangeRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class InviteCreateRequest(BaseModel):
+    role: str = Field(default="member", pattern="^(member|admin)$")
+    expires_in_hours: int = Field(default=168, ge=1, le=24 * 90)
+
+
+class InviteRedeemRequest(BaseModel):
+    username: str = Field(min_length=1)
+    password: str = Field(min_length=8)
+    profile_name: str = "Default"
+    profile_slug: str = "default"
+
+
 class CommandPolicyRequest(BaseModel):
     command: str = Field(min_length=1)
     project_slug: str
@@ -599,6 +611,69 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         profile = create_profile_for(created, payload.profile_slug, payload.profile_name, is_default=True)
         provision_user_workspace(db(), cfg, created)
         return {"user": public_user(created), "profile": profile_payload(profile)}
+
+    # ── Invite links (admin generates, user self-registers) ──────────
+    def _valid_invite(code: str) -> dict[str, Any]:
+        row = db().execute("SELECT * FROM invites WHERE code = ?", (code,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="invalid invite code")
+        inv = dict(row)
+        if inv["used_at"]:
+            raise HTTPException(status_code=410, detail="invite already used")
+        if inv["expires_at"] and inv["expires_at"] < iso_now():
+            raise HTTPException(status_code=410, detail="invite expired")
+        return inv
+
+    @app.post("/api/invites", status_code=201)
+    def create_invite(payload: InviteCreateRequest, user: dict[str, Any] = Depends(admin_user)):
+        code = new_token()[:14]
+        expires = expiry(payload.expires_in_hours)
+        db().execute(
+            "INSERT INTO invites(code, role, created_by, expires_at) VALUES (?, ?, ?, ?)",
+            (code, payload.role, user["id"], expires),
+        )
+        return {"code": code, "role": payload.role, "expires_at": expires}
+
+    @app.get("/api/invites")
+    def list_invites(user: dict[str, Any] = Depends(admin_user)):
+        rows = db().execute(
+            "SELECT i.code, i.role, i.expires_at, i.used_at, u.username AS used_by "
+            "FROM invites i LEFT JOIN users u ON u.id = i.used_by ORDER BY i.created_at DESC"
+        ).fetchall()
+        return {"invites": [dict(r) for r in rows]}
+
+    @app.delete("/api/invites/{code}")
+    def revoke_invite(code: str, user: dict[str, Any] = Depends(admin_user)):
+        db().execute("DELETE FROM invites WHERE code = ? AND used_at IS NULL", (code,))
+        return {"ok": True, "code": code}
+
+    @app.get("/api/invites/{code}")
+    def preview_invite(code: str):
+        inv = _valid_invite(code)
+        return {"valid": True, "role": inv["role"]}
+
+    @app.post("/api/invites/{code}/redeem", status_code=201)
+    def redeem_invite(code: str, payload: InviteRedeemRequest):
+        inv = _valid_invite(code)
+        username = validate_slug(payload.username)
+        user_role = "environment_admin" if inv["role"] == "admin" else "member"
+        try:
+            cur = db().execute(
+                "INSERT INTO users(username, os_user, role, password_hash, password_set_at) VALUES (?, ?, ?, ?, ?)",
+                (username, username, user_role, hash_password(payload.password), iso_now()),
+            )
+        except sqlite3.IntegrityError:
+            raise HTTPException(status_code=409, detail="username already exists") from None
+        created = dict(db().execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
+        profile = create_profile_for(created, payload.profile_slug, payload.profile_name, is_default=True)
+        db().execute("UPDATE invites SET used_at = ?, used_by = ? WHERE code = ?", (iso_now(), created["id"], code))
+        db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'invite.redeem', 'user', ?)", (created["id"], username))
+        try:
+            provision_user_workspace(db(), cfg, created)
+        except Exception:
+            logging.getLogger("hive_os.provisioning").exception("invite redeem provisioning failed")
+        token = create_token(created["id"])
+        return {"token": token, "user": public_user(created), "profile": profile_payload(profile)}
 
     @app.get("/api/profiles")
     def list_profiles(user: dict[str, Any] = Depends(current_user)):

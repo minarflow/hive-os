@@ -8,6 +8,7 @@ import type { ChatSession, Profile, Project, Runner, User, View } from './types'
 import { AppShell } from './components/shell/AppShell'
 import { SetupScreen } from './screens/SetupScreen'
 import { LoginScreen } from './screens/LoginScreen'
+import { RedeemScreen } from './screens/RedeemScreen'
 import { ChatScreen } from './screens/ChatScreen'
 import { ProjectsScreen } from './screens/ProjectsScreen'
 import { WikiScreen } from './screens/WikiScreen'
@@ -106,7 +107,11 @@ export function App() {
 
   if (booting) return <div className="center-screen"><div className="brand-mark">H</div><p>Starting Hive OS…</p></div>
   if (needsSetup) return <SetupScreen onComplete={acceptAuth} />
-  if (!token || !user) return <LoginScreen onLogin={acceptAuth} />
+  if (!token || !user) {
+    const inviteCode = new URLSearchParams(window.location.search).get('invite')
+    if (inviteCode) return <RedeemScreen code={inviteCode} onRedeemed={async (t, u) => { await acceptAuth(t, u); window.history.replaceState({}, '', window.location.pathname) }} />
+    return <LoginScreen onLogin={acceptAuth} />
+  }
 
   return (
     <AppShell
