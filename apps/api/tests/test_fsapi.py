@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from hive_os_api import fsapi
@@ -58,3 +60,23 @@ def test_mkdir_rename_delete(tmp_path):
     assert not (root / "renamed.txt").exists()
     fsapi.delete(root, "sub")
     assert not (root / "sub").exists()
+
+
+def test_list_tree_handles_broken_symlink(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    (root / "real.txt").write_text("content", encoding="utf-8")
+    os.symlink("/nonexistent/target", root / "broken")
+    entries = fsapi.list_tree(root, "")
+    names = [e["name"] for e in entries]
+    assert "broken" in names
+    broken_entry = next(e for e in entries if e["name"] == "broken")
+    assert broken_entry["type"] == "file"
+    assert broken_entry["size"] == 0
+
+
+def test_resolve_rejects_null_byte(tmp_path):
+    root = tmp_path / "proj"
+    root.mkdir()
+    with pytest.raises(fsapi.FsError):
+        fsapi.resolve_in_project(root, "foo\x00bar")

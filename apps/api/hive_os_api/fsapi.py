@@ -18,6 +18,8 @@ def resolve_in_project(root: Path, rel: str) -> Path:
     """
     root = Path(root).resolve()
     rel = (rel or "").strip()
+    if "\x00" in rel:
+        raise FsError("invalid path")
     # Reject absolute paths explicitly before any joining
     if rel and Path(rel).is_absolute():
         raise FsError("path escapes project root")
@@ -35,10 +37,14 @@ def list_tree(root: Path, rel: str) -> list[dict]:
     entries: list[dict] = []
     for child in target.iterdir():
         is_dir = child.is_dir()
+        try:
+            size = 0 if is_dir else child.stat().st_size
+        except OSError:
+            size = 0
         entries.append({
             "name": child.name,
             "type": "dir" if is_dir else "file",
-            "size": 0 if is_dir else child.stat().st_size,
+            "size": size,
         })
     entries.sort(key=lambda e: (e["type"] != "dir", e["name"].lower()))
     return entries
