@@ -134,3 +134,11 @@ export const IconSparkle = ({ size }: IconProps) => (
     <path d="M12 3l1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z" />
   </Svg>
 )
+
+export const IconWiki = ({ size }: IconProps) => (
+  <Svg size={size}>
+    <rect x="5" y="3.5" width="14" height="17" rx="2" />
+    <path d="M9 3.5v17" />
+    <path d="M12 8.5h4M12 12h4" />
+  </Svg>
+)

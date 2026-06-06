@@ -1,13 +1,13 @@
 import React from 'react'
-import type { FileEntry, Project } from '../../types'
-import { listTree, mkdir, renamePath, deletePath, writeFile } from '../../api/files'
+import type { FileEntry } from '../../types'
+import type { FsAdapter } from '../../api/fsAdapter'
 import { IconFile, IconFolder, IconChevronRight, IconFilePlus, IconFolderPlus } from '../shell/icons'
 
 // Lazy-load the CodeMirror editor so its chunk only loads when a file is opened.
 const FileEditor = React.lazy(() => import('./FileEditor').then(m => ({ default: m.FileEditor })))
 
 type Ctl = {
-  token: string; slug: string; refreshKey: number
+  fs: FsAdapter; refreshKey: number
   expanded: Set<string>; toggle: (p: string) => void
   creating: { dir: string; type: 'file' | 'dir' } | null
   renaming: string | null
@@ -43,9 +43,9 @@ function Level({ dir, depth, t }: { dir: string; depth: number; t: Ctl }) {
   const [loaded, setLoaded] = React.useState(false)
   React.useEffect(() => {
     let alive = true
-    listTree(t.token, t.slug, dir).then(b => { if (alive) { setEntries(b.entries); setLoaded(true) } }).catch(() => { if (alive) setLoaded(true) })
+    t.fs.list(dir).then(b => { if (alive) { setEntries(b.entries); setLoaded(true) } }).catch(() => { if (alive) setLoaded(true) })
     return () => { alive = false }
-  }, [t.token, t.slug, dir, t.refreshKey])
+  }, [t.fs, dir, t.refreshKey])
 
   return <div className="tree-level">
     {t.creating && t.creating.dir === dir && <InlineInput initial="" depth={depth} icon={t.creating.type === 'dir' ? <IconFolder size={15} /> : <IconFile size={15} />} onSubmit={t.submitCreate} onCancel={t.cancelCreate} />}
@@ -68,11 +68,11 @@ function Level({ dir, depth, t }: { dir: string; depth: number; t: Ctl }) {
         <span className="tree-name">{entry.name}</span>
       </button>
     })}
-    {loaded && entries.length === 0 && depth === 0 && !t.creating && <p className="muted tree-empty">Empty project · right-click to add</p>}
+    {loaded && entries.length === 0 && depth === 0 && !t.creating && <p className="muted tree-empty">Empty · right-click to add</p>}
   </div>
 }
 
-export function WorkspaceTree({ token, project }: { token: string; project: Project | null }) {
+export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSignal = 0 }: { fs: FsAdapter; title: string; className?: string; refreshSignal?: number }) {
   const [refreshKey, setRefreshKey] = React.useState(0)
   const [editing, setEditing] = React.useState<string | null>(null)
   const [treeError, setTreeError] = React.useState<string | null>(null)
@@ -81,8 +81,10 @@ export function WorkspaceTree({ token, project }: { token: string; project: Proj
   const [renaming, setRenaming] = React.useState<string | null>(null)
   const [menu, setMenu] = React.useState<{ x: number; y: number; path: string | null; isDir: boolean } | null>(null)
   const refresh = () => setRefreshKey(k => k + 1)
-  const slug = project?.slug || ''
 
+  // Reset view when the source (fs) or external refresh signal changes.
+  React.useEffect(() => { setEditing(null); setExpanded(new Set()); setRefreshKey(k => k + 1) }, [fs])
+  React.useEffect(() => { if (refreshSignal) setRefreshKey(k => k + 1) }, [refreshSignal])
   React.useEffect(() => {
     const onChange = () => setRefreshKey(k => k + 1)
     window.addEventListener('hive:files-changed', onChange)
@@ -96,8 +98,6 @@ export function WorkspaceTree({ token, project }: { token: string; project: Proj
     return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true) }
   }, [menu])
 
-  if (!project) return <aside className="right-rail"><div className="rail-card"><p className="muted">Select a project to browse files.</p></div></aside>
-
   const guard = async (p: Promise<unknown>) => { setTreeError(null); try { await p } catch (e) { setTreeError(String(e)) } refresh() }
 
   function startCreate(dir: string, type: 'file' | 'dir') {
@@ -109,25 +109,25 @@ export function WorkspaceTree({ token, project }: { token: string; project: Proj
     const c = creating; if (!c) return
     setCreating(null)
     const full = c.dir ? `${c.dir}/${name}` : name
-    if (c.type === 'dir') await guard(mkdir(token, slug, full))
-    else { await guard(writeFile(token, slug, full, '')); setEditing(full) }
+    if (c.type === 'dir') await guard(fs.mkdir(full))
+    else { await guard(fs.write(full, '')); setEditing(full) }
   }
   async function submitRename(path: string, name: string) {
     setRenaming(null)
     const parent = path.split('/').slice(0, -1).join('/')
     const to = parent ? `${parent}/${name}` : name
     if (to === path) return
-    await guard(renamePath(token, slug, path, to))
+    await guard(fs.rename(path, to))
     if (editing === path) setEditing(to)
   }
   async function remove(path: string) {
     if (!window.confirm(`Delete "${base(path)}"? This cannot be undone.`)) return
-    await guard(deletePath(token, slug, path))
+    await guard(fs.remove(path))
     if (editing === path || (editing && editing.startsWith(path + '/'))) setEditing(null)
   }
 
   const t: Ctl = {
-    token, slug, refreshKey, expanded,
+    fs, refreshKey, expanded,
     toggle: p => setExpanded(s => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n }),
     creating, renaming, activePath: editing,
     openFile: setEditing,
@@ -138,14 +138,14 @@ export function WorkspaceTree({ token, project }: { token: string; project: Proj
 
   const menuDir = menu ? (menu.path == null ? '' : menu.isDir ? menu.path : menu.path.split('/').slice(0, -1).join('/')) : ''
 
-  return <aside className="right-rail">
-    <div className="tree-toolbar"><strong>{project.name}</strong><div className="tree-actions">
+  return <aside className={className}>
+    <div className="tree-toolbar"><strong>{title}</strong><div className="tree-actions">
       <button title="New file" aria-label="New file" onClick={() => startCreate('', 'file')}><IconFilePlus size={16} /></button>
       <button title="New folder" aria-label="New folder" onClick={() => startCreate('', 'dir')}><IconFolderPlus size={16} /></button>
     </div></div>
     {treeError && <p className="tree-error">{treeError}</p>}
     <div className="tree-scroll" onContextMenu={e => { if (e.target === e.currentTarget) t.openMenu(e, null, true) }}><Level dir="" depth={0} t={t} /></div>
-    {editing && <React.Suspense fallback={<div className="file-editor"><div className="file-editor-head"><strong>{base(editing)}</strong></div><p className="muted" style={{ padding: '10px' }}>Loading editor…</p></div>}><FileEditor token={token} slug={slug} path={editing} onClose={() => setEditing(null)} /></React.Suspense>}
+    {editing && <React.Suspense fallback={<div className="file-editor"><div className="file-editor-head"><strong>{base(editing)}</strong></div><p className="muted" style={{ padding: '10px' }}>Loading editor…</p></div>}><FileEditor fs={fs} path={editing} onClose={() => setEditing(null)} /></React.Suspense>}
     {menu && <div className="ctx-menu" style={{ top: menu.y, left: menu.x }} onClick={e => e.stopPropagation()}>
       <button onClick={() => { startCreate(menuDir, 'file'); setMenu(null) }}>New File</button>
       <button onClick={() => { startCreate(menuDir, 'dir'); setMenu(null) }}>New Folder</button>

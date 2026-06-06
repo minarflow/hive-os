@@ -8,7 +8,7 @@ import { markdown } from '@codemirror/lang-markdown'
 import { json } from '@codemirror/lang-json'
 import { html } from '@codemirror/lang-html'
 import { css } from '@codemirror/lang-css'
-import { readFile, writeFile } from '../../api/files'
+import type { FsAdapter } from '../../api/fsAdapter'
 
 function langFor(path: string) {
   const ext = path.split('.').pop()?.toLowerCase()
@@ -24,7 +24,7 @@ function langFor(path: string) {
   }
 }
 
-export function FileEditor({ token, slug, path, onClose }: { token: string; slug: string; path: string; onClose: () => void }) {
+export function FileEditor({ fs, path, onClose }: { fs: FsAdapter; path: string; onClose: () => void }) {
   const [content, setContent] = React.useState('')
   const [dirty, setDirty] = React.useState(false)
   const [status, setStatus] = React.useState<string>('loading')
@@ -33,13 +33,13 @@ export function FileEditor({ token, slug, path, onClose }: { token: string; slug
 
   React.useEffect(() => {
     setStatus('loading'); setDirty(false)
-    readFile(token, slug, path).then(b => { setContent(b.content); setStatus('ready') }).catch(e => setStatus(String(e)))
-  }, [token, slug, path])
+    fs.read(path).then(b => { setContent(b.content); setStatus('ready') }).catch(e => setStatus(String(e)))
+  }, [fs, path])
 
   const save = React.useCallback(async () => {
     setStatus('saving')
-    try { await writeFile(token, slug, path, content); setDirty(false); setStatus('saved') } catch (e) { setStatus(String(e)) }
-  }, [token, slug, path, content])
+    try { await fs.write(path, content); setDirty(false); setStatus('saved') } catch (e) { setStatus(String(e)) }
+  }, [fs, path, content])
   saveRef.current = () => void save()
 
   const saveKey = React.useMemo(() => keymap.of([{ key: 'Mod-s', preventDefault: true, run: () => { saveRef.current(); return true } }]), [])

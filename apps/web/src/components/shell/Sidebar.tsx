@@ -1,12 +1,13 @@
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
-import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear, IconClose, IconPencil, IconTrash } from './icons'
+import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear, IconClose, IconPencil, IconTrash, IconWiki } from './icons'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
 
 const nav: NavItem[] = [
   { id: 'chat', label: 'New Chat', icon: IconNewChat, action: 'new-chat' },
   { id: 'projects', label: 'Projects', icon: IconProjects },
+  { id: 'wiki', label: 'Wiki', icon: IconWiki },
   { id: 'profiles', label: 'Agents', icon: IconAgents },
   { id: 'users', label: 'Team Users', icon: IconUsers }
 ]

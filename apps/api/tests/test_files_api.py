@@ -62,3 +62,17 @@ def test_non_member_cannot_access(tmp_path):
     other = c.post("/auth/login", json={"username": "aris", "password": "password123"}).json()["token"]
     oh = {"Authorization": f"Bearer {other}"}
     assert c.get("/api/projects/demo/tree", headers=oh).status_code == 404
+
+
+def test_wiki_personal_crud(tmp_path):
+    c = client(tmp_path)
+    token = c.post("/api/setup/bootstrap", json={"username": "kuya", "password": "password123", "profile_name": "Default", "profile_slug": "default"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    # personal wiki is created-on-demand with a seeded index.md
+    tree = c.get("/api/wiki/tree", headers=headers).json()["entries"]
+    assert any(e["name"] == "index.md" for e in tree)
+    assert c.put("/api/wiki/file?path=notes/todo.md", headers=headers, json={"content": "# todo"}).status_code == 200
+    assert c.get("/api/wiki/file?path=notes/todo.md", headers=headers).json()["content"] == "# todo"
+    assert c.post("/api/wiki/fs/rename", headers=headers, json={"from": "notes/todo.md", "to": "notes/done.md"}).status_code == 200
+    assert c.delete("/api/wiki/fs?path=notes/done.md", headers=headers).status_code == 200
+    assert c.get("/api/wiki/tree?path=../..", headers=headers).status_code == 400
