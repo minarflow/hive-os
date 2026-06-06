@@ -12,16 +12,16 @@ const WikiNote = React.lazy(() => import('../components/wiki/WikiNote').then(m =
 
 type Tab = 'files' | 'graph' | 'search'
 
-export function WikiScreen({ token, activeProject }: { token: string; activeProject: Project | null }) {
-  const [source, setSource] = React.useState<'personal' | 'project'>('personal')
+export function WikiScreen({ token, projects }: { token: string; projects: Project[] }) {
+  const [sourceKey, setSourceKey] = React.useState<string>('')   // '' = My Wiki, else project slug
   const [tab, setTab] = React.useState<Tab>('files')
   const [openNote, setOpenNote] = React.useState<string | null>(null)
   const [notes, setNotes] = React.useState<WikiNoteRaw[]>([])
   const [version, setVersion] = React.useState(0)
 
-  const useProject = source === 'project' && !!activeProject
-  const fs = React.useMemo(() => (useProject && activeProject ? projectFs(token, activeProject.slug, 'wiki') : wikiFs(token)), [token, useProject, activeProject?.slug])
-  const loadAll = React.useCallback(() => (useProject && activeProject ? projectWikiAll(token, activeProject.slug) : wikiListAll(token)), [token, useProject, activeProject?.slug])
+  const selected = projects.find(p => p.slug === sourceKey) || null
+  const fs = React.useMemo(() => (selected ? projectFs(token, selected.slug, 'wiki') : wikiFs(token)), [token, selected?.slug])
+  const loadAll = React.useCallback(() => (selected ? projectWikiAll(token, selected.slug) : wikiListAll(token)), [token, selected?.slug])
 
   React.useEffect(() => { setOpenNote(null) }, [fs])
   React.useEffect(() => {
@@ -33,22 +33,26 @@ export function WikiScreen({ token, activeProject }: { token: string; activeProj
   const mdNotes = React.useMemo(() => notes.filter(n => /\.(md|markdown)$/i.test(n.path)), [notes])
   const model = React.useMemo(() => buildWikiModel(mdNotes), [mdNotes])
   const isMd = (name: string) => /\.(md|markdown)$/i.test(name)
-  const title = useProject && activeProject ? `${activeProject.name} · wiki` : 'My Wiki'
+  const title = selected ? `${selected.name} · wiki` : 'My Wiki'
   const reload = () => setVersion(v => v + 1)
   const openInFiles = (p: string) => { setOpenNote(p); setTab('files') }
 
   return <section className="wiki-view">
     <div className="wiki-switch">
-      <div className="seg">
-        <button className={source === 'personal' ? 'active' : ''} onClick={() => setSource('personal')}>My Wiki</button>
-        <button className={source === 'project' ? 'active' : ''} onClick={() => setSource('project')} disabled={!activeProject} title={activeProject ? undefined : 'Select a project first'}>{activeProject ? activeProject.name : 'Project'} wiki</button>
-      </div>
+      <label className="wiki-source">
+        <select value={sourceKey} onChange={e => setSourceKey(e.target.value)}>
+          <option value="">📒 My Wiki</option>
+          {projects.length > 0 && <optgroup label="Project wikis">
+            {projects.map(p => <option key={p.slug} value={p.slug}>{p.name} · {p.visibility}</option>)}
+          </optgroup>}
+        </select>
+      </label>
       <div className="seg tabs">
         <button className={tab === 'files' ? 'active' : ''} onClick={() => setTab('files')}>Files</button>
         <button className={tab === 'graph' ? 'active' : ''} onClick={() => setTab('graph')}>Graph</button>
         <button className={tab === 'search' ? 'active' : ''} onClick={() => setTab('search')}>Search</button>
       </div>
-      {useProject && activeProject?.visibility === 'shared' && <span className="wiki-hint">Shared · all members edit</span>}
+      {selected?.visibility === 'shared' && <span className="wiki-hint">Shared · all members edit</span>}
     </div>
 
     {tab === 'files' && <div className="wiki-files">

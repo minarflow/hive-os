@@ -125,7 +125,7 @@ export function App() {
       {error && <div className="error-bar">{error}</div>}
       {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={setActiveProject} onSession={setActiveSession} onRefresh={refreshAll} onNewSession={startNewSession} />}
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
-      {view === 'wiki' && <WikiScreen token={token} activeProject={activeProject} />}
+      {view === 'wiki' && <WikiScreen token={token} projects={projects} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
       {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} onLogout={() => void doLogout()} />}
