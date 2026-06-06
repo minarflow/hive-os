@@ -1,0 +1,16 @@
+[Unit]
+Description=Hive OS Team Workspace
+After=network.target
+
+[Service]
+Type=simple
+User=hive-os
+Group=hive-os
+EnvironmentFile=/etc/hive-os/hive-os.env
+WorkingDirectory=/opt/hive-os
+ExecStart=/usr/local/bin/hive-os serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

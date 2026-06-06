@@ -1,0 +1,36 @@
+# Runtime/workspace data
+/srv/
+*.db
+*.sqlite
+*.sqlite3
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+*.tsbuildinfo
+
+# Misc
+nohup.out
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+
+# Logs/cache
+logs/
+*.log
+.cache/

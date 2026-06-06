@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="${HIVEOS_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+API_DIR="$ROOT/apps/api"
+WEB_DIR="$ROOT/apps/web"
+DATA_DIR="${HIVEOS_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/hive-os}"
+CONFIG_FILE="${HIVEOS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hive-os/hive-os.env}"
+
+load_config() {
+  if [[ -f "$CONFIG_FILE" ]]; then
+    # shellcheck disable=SC1090
+    source "$CONFIG_FILE"
+  fi
+  export HIVEOS_DB_PATH="${HIVEOS_DB_PATH:-$DATA_DIR/hive-os.db}"
+  export HIVEOS_WORKSPACE_ROOT="${HIVEOS_WORKSPACE_ROOT:-$DATA_DIR/workspace}"
+  export HIVEOS_HERMES_PROFILES_ROOT="${HIVEOS_HERMES_PROFILES_ROOT:-$DATA_DIR/hermes-profiles}"
+  export HIVEOS_WEB_DIST="${HIVEOS_WEB_DIST:-$WEB_DIR/dist}"
+  export HIVEOS_HOST="${HIVEOS_HOST:-127.0.0.1}"
+  export HIVEOS_PORT="${HIVEOS_PORT:-8765}"
+  export PYTHONPATH="$API_DIR${PYTHONPATH:+:$PYTHONPATH}"
+}
+
+cmd="${1:-help}"; shift || true
+case "$cmd" in
+  init-config)
+    mkdir -p "$(dirname "$CONFIG_FILE")" "$DATA_DIR"
+    if [[ -f "$CONFIG_FILE" ]]; then
+      echo "config exists: $CONFIG_FILE"
+      exit 0
+    fi
+    cat >"$CONFIG_FILE" <<EOF
+# Hive OS local Team Mode config
+HIVEOS_REPO_ROOT="$ROOT"
+HIVEOS_DATA_DIR="$DATA_DIR"
+HIVEOS_DB_PATH="$DATA_DIR/hive-os.db"
+HIVEOS_WORKSPACE_ROOT="$DATA_DIR/workspace"
+HIVEOS_HERMES_PROFILES_ROOT="$DATA_DIR/hermes-profiles"
+HIVEOS_WEB_DIST="$WEB_DIR/dist"
+HIVEOS_HOST="127.0.0.1"
+HIVEOS_PORT="8765"
+# Dev/no-OS-isolation project helper. Remove this to use real infra/scripts/hiveosctl.
+HIVEOS_PROJECTCTL_COMMAND="/usr/bin/true"
+EOF
+    echo "wrote $CONFIG_FILE"
+    ;;
+  doctor)
+    load_config
+    ok=1
+    for bin in uv npm python3; do command -v "$bin" >/dev/null 2>&1 && echo "ok: $bin" || { echo "missing: $bin"; ok=0; }; done
+    command -v hermes >/dev/null 2>&1 && echo "ok: hermes ($(command -v hermes))" || echo "warn: hermes not found; install/login Hermes before real runs"
+    [[ -f "$API_DIR/scripts/serve.py" ]] && echo "ok: API serve.py" || { echo "missing API serve.py"; ok=0; }
+    [[ -d "$HIVEOS_WEB_DIST" ]] && echo "ok: web dist $HIVEOS_WEB_DIST" || echo "warn: web dist missing; run scripts/build"
+    mkdir -p "$HIVEOS_WORKSPACE_ROOT" "$HIVEOS_HERMES_PROFILES_ROOT" "$(dirname "$HIVEOS_DB_PATH")"
+    echo "ok: data dirs writable"
+    [[ "$ok" == 1 ]] || exit 1
+    ;;
+  build)
+    exec "$ROOT/scripts/build" "$@"
+    ;;
+  serve)
+    load_config
+    mkdir -p "$HIVEOS_WORKSPACE_ROOT" "$HIVEOS_HERMES_PROFILES_ROOT" "$(dirname "$HIVEOS_DB_PATH")"
+    exec "$API_DIR/.venv/bin/python" "$API_DIR/scripts/serve.py" "$@"
+    ;;
+  print-env)
+    load_config
+    env | grep '^HIVEOS_' | sort
+    ;;
+  help|*)
+    cat <<EOF
+Hive OS installer wrapper
+
+Usage:
+  hive-os init-config   Create local config at $CONFIG_FILE
+  hive-os doctor        Check dependencies and runtime dirs
+  hive-os build         Sync deps, run tests, build web
+  hive-os serve         Serve API + built PWA on HIVEOS_HOST:HIVEOS_PORT
+  hive-os print-env     Print resolved HIVEOS_* env
+EOF
+    ;;
+esac

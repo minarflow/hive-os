@@ -1,0 +1,17 @@
+import React from 'react'
+import { createProject, inviteMember, listMembers, removeMember, type Member } from '../api/projects'
+import type { Project } from '../types'
+
+export function ProjectsScreen({ token, projects, onActiveProject, onRefresh }: { token: string; projects: Project[]; onActiveProject: (p: Project) => void; onRefresh: () => Promise<void> }) {
+  const [slug, setSlug] = React.useState('')
+  const [name, setName] = React.useState('')
+  const [visibility, setVisibility] = React.useState<'private' | 'shared'>('private')
+  const [selected, setSelected] = React.useState<Project | null>(projects[0] || null)
+  const [members, setMembers] = React.useState<Member[]>([])
+  const [invite, setInvite] = React.useState('')
+  const [error, setError] = React.useState('')
+  React.useEffect(() => { if (selected) void listMembers(token, selected.slug).then(body => setMembers(body.members)).catch(() => setMembers([])) }, [selected?.slug, token])
+  async function create(event: React.FormEvent) { event.preventDefault(); setError(''); try { const p = await createProject(token, { slug, name: name || slug, visibility }); setSlug(''); setName(''); setSelected(p); onActiveProject(p); await onRefresh() } catch (err) { setError(String(err)) } }
+  async function member(action: 'invite' | 'remove') { if (!selected) return; try { action === 'invite' ? await inviteMember(token, selected.slug, invite) : await removeMember(token, selected.slug, invite); const body = await listMembers(token, selected.slug); setMembers(body.members); await onRefresh() } catch (err) { setError(String(err)) } }
+  return <section className="projects-view"><div className="panel project-list-panel"><div className="panel-head"><h3>Projects</h3><span>{projects.length}</span></div>{projects.map(project => <button className={`project-card ${selected?.slug === project.slug ? 'active' : ''}`} key={project.slug} onClick={() => { setSelected(project); onActiveProject(project) }}><strong>{project.name}</strong><small>{project.slug}</small><span>{project.visibility} · {project.role}</span></button>)}</div><div className="panel project-actions-panel"><div className="panel-head"><h3>Create project</h3><span>team mode</span></div><form className="stack-form" onSubmit={create}><label>Slug<input value={slug} onChange={e => setSlug(e.target.value)} /></label><label>Name<input value={name} onChange={e => setName(e.target.value)} /></label><label>Visibility<select value={visibility} onChange={e => setVisibility(e.target.value as 'private' | 'shared')}><option value="private">Private</option><option value="shared">Shared</option></select></label><button className="primary-button" disabled={!slug}>Create</button></form><div className="divider" /><div className="panel-head"><h3>Members</h3><span>{selected?.slug || 'none'}</span></div>{members.map(m => <p className="member-row" key={m.username}><strong>{m.username}</strong><span>{m.role}</span></p>)}<div className="stack-form"><label>User<input value={invite} onChange={e => setInvite(e.target.value)} /></label><div className="button-row"><button disabled={!selected || !invite} onClick={() => void member('invite')}>Invite</button><button disabled={!selected || !invite} onClick={() => void member('remove')}>Remove</button></div></div>{error && <p className="error-text">{error}</p>}</div></section>
+}
