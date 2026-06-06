@@ -31,7 +31,7 @@ def ensure_member(conn: sqlite3.Connection, project_id: int, user_id: int, role:
     )
 
 
-def _audit(conn: sqlite3.Connection, actor_user_id, action: str, slug: str, metadata: str = "{}") -> None:
+def _audit(conn: sqlite3.Connection, actor_user_id: int | None, action: str, slug: str, metadata: str = "{}") -> None:
     conn.execute(
         "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) "
         "VALUES (?, ?, 'project', ?, ?)",
@@ -103,6 +103,8 @@ def backfill(conn: sqlite3.Connection, cfg: dict[str, Any]) -> dict[str, int]:
     for user in users:
         provision_private_project(conn, cfg, user)
         for s in shared:
+            # INSERT OR IGNORE: a user who already owns a shared project keeps the
+            # 'owner' role set by provision_shared_project; this only adds missing members.
             ensure_member(conn, s["id"], user["id"], "collaborator")
     return {"users": len(users)}
 
