@@ -50,6 +50,29 @@ def list_tree(root: Path, rel: str) -> list[dict]:
     return entries
 
 
+def walk_files(root: Path, rel: str = "", limit: int = MAX_READ_BYTES) -> list[dict]:
+    """Return all readable text files (path relative to base, content) under rel.
+
+    Recursive; skips symlinks, oversized files, and non-UTF-8 files. Used to
+    bulk-load a wiki for graph/search/backlink building.
+    """
+    base = resolve_in_project(root, rel)
+    out: list[dict] = []
+    if not base.is_dir():
+        return out
+    for p in sorted(base.rglob("*")):
+        if p.is_symlink() or not p.is_file():
+            continue
+        try:
+            if p.stat().st_size > limit:
+                continue
+            text = p.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        out.append({"path": str(p.relative_to(base)), "content": text})
+    return out
+
+
 def read_file(root: Path, rel: str) -> str:
     target = resolve_in_project(root, rel)
     if not target.is_file():

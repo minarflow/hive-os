@@ -3,7 +3,12 @@ import type { FileEntry } from '../types'
 
 const q = (s: string) => encodeURIComponent(s)
 
+export type WikiNoteRaw = { path: string; content: string }
+
 // Personal per-user wiki (server jails it to users/<username>/wiki).
+export const listAll = (token: string) =>
+  api<{ notes: WikiNoteRaw[] }>(`/api/wiki/all`, token)
+
 export const listTree = (token: string, path = '') =>
   api<{ path: string; entries: FileEntry[] }>(`/api/wiki/tree?path=${q(path)}`, token)
 

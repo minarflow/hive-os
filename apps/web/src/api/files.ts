@@ -6,6 +6,9 @@ const q = (s: string) => encodeURIComponent(s)
 export const listTree = (token: string, slug: string, path = '') =>
   api<{ path: string; entries: FileEntry[] }>(`/api/projects/${slug}/tree?path=${q(path)}`, token)
 
+export const projectWikiAll = (token: string, slug: string) =>
+  api<{ notes: { path: string; content: string }[] }>(`/api/projects/${slug}/wiki/all`, token)
+
 export const readFile = (token: string, slug: string, path: string) =>
   api<{ path: string; content: string }>(`/api/projects/${slug}/file?path=${q(path)}`, token)
 

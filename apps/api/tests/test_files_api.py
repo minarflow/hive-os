@@ -76,3 +76,15 @@ def test_wiki_personal_crud(tmp_path):
     assert c.post("/api/wiki/fs/rename", headers=headers, json={"from": "notes/todo.md", "to": "notes/done.md"}).status_code == 200
     assert c.delete("/api/wiki/fs?path=notes/done.md", headers=headers).status_code == 200
     assert c.get("/api/wiki/tree?path=../..", headers=headers).status_code == 400
+
+
+def test_wiki_all_bulk(tmp_path):
+    c = client(tmp_path)
+    token = c.post("/api/setup/bootstrap", json={"username": "kuya", "password": "password123", "profile_name": "Default", "profile_slug": "default"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    c.put("/api/wiki/file?path=a.md", headers=headers, json={"content": "see [[b]]"})
+    c.put("/api/wiki/file?path=b.md", headers=headers, json={"content": "# B"})
+    notes = c.get("/api/wiki/all", headers=headers).json()["notes"]
+    paths = {n["path"] for n in notes}
+    assert {"index.md", "a.md", "b.md"} <= paths
+    assert any(n["content"] == "see [[b]]" for n in notes)

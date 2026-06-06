@@ -797,6 +797,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         _audit_fs(user, "fs.delete", slug, path)
         return {"ok": True, "path": path}
 
+    @app.get("/api/projects/{slug}/wiki/all")
+    def project_wiki_all(slug: str, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        return {"notes": fsapi.walk_files(root, "wiki")}
+
     # ── Personal per-user wiki (workspace_root/users/<username>/wiki) ──
     def _wiki_root(user: dict[str, Any]) -> Path:
         root = Path(cfg["workspace_root"]) / "users" / validate_slug(user["username"]) / "wiki"
@@ -810,6 +815,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) VALUES (?, ?, 'wiki', ?, ?)",
             (user["id"], action, user["username"], json.dumps({"path": path})),
         )
+
+    @app.get("/api/wiki/all")
+    def wiki_all(user: dict[str, Any] = Depends(current_user)):
+        return {"notes": fsapi.walk_files(_wiki_root(user))}
 
     @app.get("/api/wiki/tree")
     def wiki_tree(path: str = "", user: dict[str, Any] = Depends(current_user)):

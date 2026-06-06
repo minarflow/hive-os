@@ -72,7 +72,7 @@ function Level({ dir, depth, t }: { dir: string; depth: number; t: Ctl }) {
   </div>
 }
 
-export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSignal = 0 }: { fs: FsAdapter; title: string; className?: string; refreshSignal?: number }) {
+export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSignal = 0, onOpenFile, onChange, activePath }: { fs: FsAdapter; title: string; className?: string; refreshSignal?: number; onOpenFile?: (path: string) => void; onChange?: () => void; activePath?: string | null }) {
   const [refreshKey, setRefreshKey] = React.useState(0)
   const [editing, setEditing] = React.useState<string | null>(null)
   const [treeError, setTreeError] = React.useState<string | null>(null)
@@ -98,7 +98,9 @@ export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSign
     return () => { window.removeEventListener('click', close); window.removeEventListener('scroll', close, true) }
   }, [menu])
 
-  const guard = async (p: Promise<unknown>) => { setTreeError(null); try { await p } catch (e) { setTreeError(String(e)) } refresh() }
+  const guard = async (p: Promise<unknown>) => { setTreeError(null); try { await p } catch (e) { setTreeError(String(e)) } refresh(); onChange?.() }
+
+  const openFile = (p: string) => { if (onOpenFile) onOpenFile(p); else setEditing(p) }
 
   function startCreate(dir: string, type: 'file' | 'dir') {
     setRenaming(null)
@@ -110,7 +112,7 @@ export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSign
     setCreating(null)
     const full = c.dir ? `${c.dir}/${name}` : name
     if (c.type === 'dir') await guard(fs.mkdir(full))
-    else { await guard(fs.write(full, '')); setEditing(full) }
+    else { await guard(fs.write(full, '')); openFile(full) }
   }
   async function submitRename(path: string, name: string) {
     setRenaming(null)
@@ -129,8 +131,8 @@ export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSign
   const t: Ctl = {
     fs, refreshKey, expanded,
     toggle: p => setExpanded(s => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n }),
-    creating, renaming, activePath: editing,
-    openFile: setEditing,
+    creating, renaming, activePath: activePath !== undefined ? activePath : editing,
+    openFile,
     openMenu: (e, path, isDir) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY, path, isDir }) },
     submitCreate, cancelCreate: () => setCreating(null),
     submitRename, cancelRename: () => setRenaming(null)
@@ -145,7 +147,7 @@ export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSign
     </div></div>
     {treeError && <p className="tree-error">{treeError}</p>}
     <div className="tree-scroll" onContextMenu={e => { if (e.target === e.currentTarget) t.openMenu(e, null, true) }}><Level dir="" depth={0} t={t} /></div>
-    {editing && <React.Suspense fallback={<div className="file-editor"><div className="file-editor-head"><strong>{base(editing)}</strong></div><p className="muted" style={{ padding: '10px' }}>Loading editor…</p></div>}><FileEditor fs={fs} path={editing} onClose={() => setEditing(null)} /></React.Suspense>}
+    {!onOpenFile && editing && <React.Suspense fallback={<div className="file-editor"><div className="file-editor-head"><strong>{base(editing)}</strong></div><p className="muted" style={{ padding: '10px' }}>Loading editor…</p></div>}><FileEditor fs={fs} path={editing} onClose={() => setEditing(null)} /></React.Suspense>}
     {menu && <div className="ctx-menu" style={{ top: menu.y, left: menu.x }} onClick={e => e.stopPropagation()}>
       <button onClick={() => { startCreate(menuDir, 'file'); setMenu(null) }}>New File</button>
       <button onClick={() => { startCreate(menuDir, 'dir'); setMenu(null) }}>New Folder</button>
