@@ -82,10 +82,9 @@ export function AppShell(props: {
       {drawerOpen && <button aria-label="Close menu" className="drawer-scrim" onClick={() => setDrawerOpen(false)} />}
       <main className="main-pane">
         <header className="main-header">
-          <div><p className="eyebrow">{props.currentView}</p><h2>{props.activeProject?.name || 'Team workspace'}</h2></div>
+          <div className="header-title"><h2>{props.activeProject?.name || 'Team workspace'}</h2></div>
           <div className="header-right">
-            <div className="context-chips"><span>{props.user.username}</span><span>{props.activeProfile?.name || 'no profile'}</span><span>Hermes</span></div>
-            <button className="icon-button panel-toggle rail-toggle" onClick={toggleRight} aria-label="Toggle files" title="Toggle files panel">◨</button>
+            <button className="icon-button panel-toggle rail-toggle" onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel">◨</button>
           </div>
         </header>
         {props.children}

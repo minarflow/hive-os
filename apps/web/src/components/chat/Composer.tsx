@@ -24,6 +24,6 @@ export function Composer({ disabled, token, onSubmit }: { disabled?: boolean; to
   return <form className="composer" onSubmit={submit}>
     {matches.length > 0 && <div className="slash-popover">{matches.map(c => <button type="button" key={c.name} onClick={() => setDraft(c.name + ' ')}><strong>{c.name}</strong><span>{c.description}</span><em>{c.surface}</em></button>)}</div>}
     <textarea placeholder="Message Hermes in this project…" value={draft} onChange={e => setDraft(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit() } }} />
-    <div className="composer-footer"><span>Hermes Team Mode · async streaming</span><button className="primary-button" disabled={disabled || !draft.trim()} type="submit">Send</button></div>
+    <div className="composer-footer end"><button className="primary-button" disabled={disabled || !draft.trim()} type="submit">Send</button></div>
   </form>
 }

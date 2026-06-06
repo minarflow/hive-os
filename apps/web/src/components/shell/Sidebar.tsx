@@ -30,8 +30,7 @@ export function Sidebar(props: {
   const shared = props.projects.filter(project => project.visibility === 'shared')
   return <div className="sidebar-inner">
     <div className="sidebar-head"><div className="brand-row"><span className="brand-dot">H</span><strong>Hive OS</strong></div><div className="sidebar-actions"><button className="icon-button mobile-only" onClick={props.onClose}>×</button></div></div>
-    <div className="search-pill">Team Mode · Hermes per profile</div>
-    <section className="nav-group"><button className="group-toggle"><span>Workspace</span></button>{nav.filter(item => item.id !== 'users' || props.user.role === 'environment_admin').map(item => {
+    <section className="nav-group">{nav.filter(item => item.id !== 'users' || props.user.role === 'environment_admin').map(item => {
       const Icon = item.icon
       const onClick = () => {
         if (item.action === 'new-chat') props.onNewChat()
@@ -40,8 +39,8 @@ export function Sidebar(props: {
       }
       return <button className={`nav-item ${props.currentView === item.id && !item.action ? 'active' : ''}`} key={item.id} onClick={onClick}><span className="nav-icon"><Icon /></span><strong>{item.label}</strong></button>
     })}</section>
-    <section className="nav-group projects-mini"><button className="group-toggle"><span>Linc-Projects</span><span>{shared.length}</span></button>{shared.length === 0 ? <span className="empty-mini">No shared projects yet</span> : shared.map(project => <button className={`project-row ${props.activeProject?.slug === project.slug ? 'active' : ''}`} key={project.slug} onClick={() => { props.onSelectProject(project); props.onSelectView('chat'); props.onClose() }}><span className="status-dot" /><div><strong>{project.name}</strong><small>{project.slug} · {project.role}</small></div></button>)}</section>
-    <section className="nav-group"><button className="group-toggle"><span>Sessions</span><span>{props.sessions.length}</span></button>{props.sessions.slice(0, 12).map(session => <button className={`project-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} onClick={() => { props.onSelectSession(session); props.onClose() }}><span className="status-dot" /><div><strong>{session.title}</strong><small>{session.project_slug || 'no project'} · {session.profile_slug || 'profile'}</small></div></button>)}</section>
+    {shared.length > 0 && <section className="nav-group projects-mini"><button className="group-toggle"><span>Shared</span><span>{shared.length}</span></button>{shared.map(project => <button className={`project-row ${props.activeProject?.slug === project.slug ? 'active' : ''}`} key={project.slug} onClick={() => { props.onSelectProject(project); props.onSelectView('chat'); props.onClose() }} title={`${project.slug} · ${project.role}`}><span className="status-dot" /><div><strong>{project.name}</strong></div></button>)}</section>}
+    {props.sessions.length > 0 && <section className="nav-group"><button className="group-toggle"><span>Sessions</span><span>{props.sessions.length}</span></button>{props.sessions.slice(0, 12).map(session => <button className={`project-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} onClick={() => { props.onSelectSession(session); props.onClose() }} title={`${session.project_slug || 'no project'} · ${session.profile_slug || 'profile'}`}><span className="status-dot" /><div><strong>{session.title}</strong></div></button>)}</section>}
     <div className="user-card"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div><button className={`icon-button settings-button ${props.currentView === 'settings' ? 'active' : ''}`} title="Settings" aria-label="Settings" onClick={() => { props.onSelectView('settings'); props.onClose() }}><IconGear /></button></div>
   </div>
 }
