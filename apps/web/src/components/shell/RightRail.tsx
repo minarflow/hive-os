@@ -1,6 +1,6 @@
 import type { ChatSession, Profile, Project } from '../../types'
+import { WorkspaceTree } from '../files/WorkspaceTree'
 
-export function RightRail({ activeProfile, activeProject, activeSession, projects }: { activeProfile: Profile | null; activeProject: Project | null; activeSession: ChatSession | null; projects: Project[] }) {
-  const shared = projects.filter(project => project.visibility === 'shared')
-  return <aside className="right-rail"><div className="rail-card"><p className="eyebrow">Repo / Project</p><h3>{activeProject?.name || 'No project selected'}</h3><p className="muted">{activeProject?.path || 'Select or create a project to scope files and runs.'}</p></div><div className="rail-card"><p className="eyebrow">Hermes profile</p><h3>{activeProfile?.name || 'No profile'}</h3><p className="muted">{activeProfile?.slug || 'Create/select a profile.'}</p></div><div className="rail-card"><p className="eyebrow">Session</p><h3>{activeSession?.title || 'New chat'}</h3><p className="muted">{activeSession?.project_slug || 'No project'} · {activeSession?.profile_slug || activeProfile?.slug || 'profile'}</p></div><div className="rail-card"><p className="eyebrow">Linc-Projects</p>{shared.length === 0 ? <p className="muted">No shared projects yet.</p> : shared.map(project => <div className="rail-row" key={project.slug}><strong>{project.name}</strong><small>{project.slug}</small></div>)}</div></aside>
+export function RightRail({ token, activeProject }: { token: string; activeProfile: Profile | null; activeProject: Project | null; activeSession: ChatSession | null; projects: Project[] }) {
+  return <WorkspaceTree token={token} project={activeProject} />
 }

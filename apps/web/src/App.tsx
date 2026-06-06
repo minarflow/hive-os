@@ -104,6 +104,7 @@ export function App() {
       profiles={profiles}
       projects={projects}
       sessions={sessions}
+      token={token}
       user={user}
     >
       {error && <div className="error-bar">{error}</div>}

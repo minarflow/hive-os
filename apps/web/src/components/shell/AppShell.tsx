@@ -17,6 +17,7 @@ export function AppShell(props: {
   profiles: Profile[]
   projects: Project[]
   sessions: ChatSession[]
+  token: string
   user: User
 }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false)
@@ -38,7 +39,7 @@ export function AppShell(props: {
         {props.children}
       </main>
       {railOpen && <button aria-label="Close files" className="drawer-scrim rail-scrim" onClick={() => setRailOpen(false)} />}
-      <RightRail activeProfile={props.activeProfile} activeProject={props.activeProject} activeSession={props.activeSession} projects={props.projects} />
+      <RightRail token={props.token} activeProfile={props.activeProfile} activeProject={props.activeProject} activeSession={props.activeSession} projects={props.projects} />
     </div>
   )
 }
