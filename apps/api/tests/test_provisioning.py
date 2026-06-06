@@ -107,3 +107,29 @@ def test_provision_private_slug_collision_uses_home_suffix(tmp_path):
     user = add_user(conn, "team")
     project = provisioning.provision_private_project(conn, cfg, user)
     assert project["slug"] == "team-home"
+
+
+def test_provision_shared_enrolls_all_users(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "admin", role="environment_admin")
+    bob = add_user(conn, "bob")
+    project = provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
+    assert project["visibility"] == "shared"
+    members = {
+        r["user_id"]: r["role"]
+        for r in conn.execute("SELECT user_id, role FROM project_members WHERE project_id = ?", (project["id"],)).fetchall()
+    }
+    assert members[admin["id"]] == "owner"
+    assert members[bob["id"]] == "collaborator"
+    assert (tmp_path / "projects" / "linc" / "wiki").is_dir()
+
+
+def test_provision_shared_idempotent(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "admin", role="environment_admin")
+    provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
+    provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
+    count = conn.execute("SELECT COUNT(*) AS c FROM projects WHERE slug = 'linc'").fetchone()["c"]
+    assert count == 1

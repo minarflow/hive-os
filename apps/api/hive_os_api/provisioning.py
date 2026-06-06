@@ -60,6 +60,24 @@ def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], use
     return dict(conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone())
 
 
+def provision_shared_project(conn: sqlite3.Connection, cfg: dict[str, Any], slug: str, name: str, owner: dict[str, Any]) -> dict[str, Any]:
+    existing = conn.execute("SELECT * FROM projects WHERE slug = ?", (slug,)).fetchone()
+    if existing:
+        project = dict(existing)
+    else:
+        path = str(scaffold_project_dir(cfg, slug))
+        cur = conn.execute(
+            "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES (?, ?, ?, ?, 'shared')",
+            (slug, name, path, owner["id"]),
+        )
+        project = dict(conn.execute("SELECT * FROM projects WHERE id = ?", (cur.lastrowid,)).fetchone())
+        _audit(conn, owner["id"], "workspace.provision.shared", slug)
+    for row in conn.execute("SELECT id FROM users").fetchall():
+        role = "owner" if row["id"] == owner["id"] else "collaborator"
+        ensure_member(conn, project["id"], row["id"], role)
+    return project
+
+
 def get_team_name(conn: sqlite3.Connection, cfg: dict[str, Any]) -> str:
     row = conn.execute("SELECT value FROM app_settings WHERE key = 'team_name'").fetchone()
     if row and row["value"]:
