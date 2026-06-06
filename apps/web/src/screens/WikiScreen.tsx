@@ -30,7 +30,9 @@ export function WikiScreen({ token, activeProject }: { token: string; activeProj
     return () => { alive = false }
   }, [loadAll, version])
 
-  const model = React.useMemo(() => buildWikiModel(notes), [notes])
+  const mdNotes = React.useMemo(() => notes.filter(n => /\.(md|markdown)$/i.test(n.path)), [notes])
+  const model = React.useMemo(() => buildWikiModel(mdNotes), [mdNotes])
+  const isMd = (name: string) => /\.(md|markdown)$/i.test(name)
   const title = useProject && activeProject ? `${activeProject.name} · wiki` : 'My Wiki'
   const reload = () => setVersion(v => v + 1)
   const openInFiles = (p: string) => { setOpenNote(p); setTab('files') }
@@ -50,7 +52,7 @@ export function WikiScreen({ token, activeProject }: { token: string; activeProj
     </div>
 
     {tab === 'files' && <div className="wiki-files">
-      <WorkspaceTree key={title} fs={fs} title={title} className="wiki-tree" onOpenFile={setOpenNote} onChange={reload} activePath={openNote} />
+      <WorkspaceTree key={title} fs={fs} title={title} className="wiki-tree" onOpenFile={setOpenNote} onChange={reload} activePath={openNote} fileFilter={isMd} defaultExt="md" />
       <div className="wiki-main">
         {openNote
           ? <React.Suspense fallback={<div className="wiki-pane-msg muted">Loading note…</div>}><WikiNote fs={fs} path={openNote} backlinks={model.backlinks[openNote] || []} resolve={model.resolve} onOpenNote={openInFiles} onClose={() => setOpenNote(null)} onSaved={reload} /></React.Suspense>
@@ -60,6 +62,6 @@ export function WikiScreen({ token, activeProject }: { token: string; activeProj
 
     {tab === 'graph' && <React.Suspense fallback={<div className="wiki-pane-msg muted">Loading graph…</div>}><WikiGraph nodes={model.nodes} links={model.links} activePath={openNote} onOpen={openInFiles} /></React.Suspense>}
 
-    {tab === 'search' && <WikiSearch notes={notes} onOpen={openInFiles} />}
+    {tab === 'search' && <WikiSearch notes={mdNotes} onOpen={openInFiles} />}
   </section>
 }

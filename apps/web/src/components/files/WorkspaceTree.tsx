@@ -8,6 +8,7 @@ const FileEditor = React.lazy(() => import('./FileEditor').then(m => ({ default:
 
 type Ctl = {
   fs: FsAdapter; refreshKey: number
+  fileFilter?: (name: string) => boolean
   expanded: Set<string>; toggle: (p: string) => void
   creating: { dir: string; type: 'file' | 'dir' } | null
   renaming: string | null
@@ -49,7 +50,7 @@ function Level({ dir, depth, t }: { dir: string; depth: number; t: Ctl }) {
 
   return <div className="tree-level">
     {t.creating && t.creating.dir === dir && <InlineInput initial="" depth={depth} icon={t.creating.type === 'dir' ? <IconFolder size={15} /> : <IconFile size={15} />} onSubmit={t.submitCreate} onCancel={t.cancelCreate} />}
-    {entries.map(entry => {
+    {entries.filter(entry => entry.type === 'dir' || !t.fileFilter || t.fileFilter(entry.name)).map(entry => {
       const path = dir ? `${dir}/${entry.name}` : entry.name
       if (t.renaming === path) return <InlineInput key={path} initial={entry.name} depth={depth} icon={entry.type === 'dir' ? <IconFolder size={15} /> : <IconFile size={15} />} onSubmit={n => t.submitRename(path, n)} onCancel={t.cancelRename} />
       if (entry.type === 'dir') {
@@ -72,7 +73,7 @@ function Level({ dir, depth, t }: { dir: string; depth: number; t: Ctl }) {
   </div>
 }
 
-export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSignal = 0, onOpenFile, onChange, activePath }: { fs: FsAdapter; title: string; className?: string; refreshSignal?: number; onOpenFile?: (path: string) => void; onChange?: () => void; activePath?: string | null }) {
+export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSignal = 0, onOpenFile, onChange, activePath, fileFilter, defaultExt }: { fs: FsAdapter; title: string; className?: string; refreshSignal?: number; onOpenFile?: (path: string) => void; onChange?: () => void; activePath?: string | null; fileFilter?: (name: string) => boolean; defaultExt?: string }) {
   const [refreshKey, setRefreshKey] = React.useState(0)
   const [editing, setEditing] = React.useState<string | null>(null)
   const [treeError, setTreeError] = React.useState<string | null>(null)
@@ -110,6 +111,7 @@ export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSign
   async function submitCreate(name: string) {
     const c = creating; if (!c) return
     setCreating(null)
+    if (c.type === 'file' && defaultExt && !/\.[a-z0-9]+$/i.test(name)) name = `${name}.${defaultExt}`
     const full = c.dir ? `${c.dir}/${name}` : name
     if (c.type === 'dir') await guard(fs.mkdir(full))
     else { await guard(fs.write(full, '')); openFile(full) }
@@ -129,7 +131,7 @@ export function WorkspaceTree({ fs, title, className = 'right-rail', refreshSign
   }
 
   const t: Ctl = {
-    fs, refreshKey, expanded,
+    fs, refreshKey, fileFilter, expanded,
     toggle: p => setExpanded(s => { const n = new Set(s); if (n.has(p)) n.delete(p); else n.add(p); return n }),
     creating, renaming, activePath: activePath !== undefined ? activePath : editing,
     openFile,
