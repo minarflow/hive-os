@@ -202,3 +202,39 @@ def test_default_config_has_provisioning_keys():
     assert cfg["default_team_name"] == "Team"
     assert cfg["provision_starter_dirs"] == ["wiki", "tasks", "artifacts"]
     assert cfg["auto_provision"] is True
+
+
+def _client(tmp_path):
+    from fastapi.testclient import TestClient
+    from hive_os_api.main import create_app
+
+    app = create_app(
+        {
+            "database_path": str(tmp_path / "db.sqlite"),
+            "workspace_root": str(tmp_path / "ws"),
+            "hermes_profiles_root": str(tmp_path / "profiles"),
+            "projectctl_path": "/usr/bin/true",
+            "start_worker": False,
+        }
+    )
+    return TestClient(app)
+
+
+def test_bootstrap_sets_team_and_shared_project(tmp_path):
+    client = _client(tmp_path)
+    resp = client.post(
+        "/api/setup/bootstrap",
+        json={
+            "username": "admin",
+            "password": "password123",
+            "profile_slug": "default",
+            "profile_name": "Default",
+            "team_name": "Linc",
+            "shared_project": {"slug": "linc", "name": "Linc"},
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["team_name"] == "Linc"
+    assert body["shared_project"]["slug"] == "linc"
+    # (the /api/setup/status team_name echo is verified in Task 10)

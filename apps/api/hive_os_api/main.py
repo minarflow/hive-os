@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import sqlite3
 import subprocess
@@ -22,6 +23,14 @@ from .profile_seed import seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 from . import fsapi
+from .provisioning import (
+    backfill,
+    get_team_name,
+    provision_shared_project,
+    provision_user_workspace,
+    scaffold_project_dir,
+    set_team_name,
+)
 
 
 class LoginRequest(BaseModel):
@@ -29,11 +38,18 @@ class LoginRequest(BaseModel):
     password: str = "password123"
 
 
+class SharedProjectSpec(BaseModel):
+    slug: str
+    name: str | None = None
+
+
 class BootstrapRequest(BaseModel):
     username: str = Field(min_length=1)
     password: str = Field(min_length=8)
     profile_name: str = "Default"
     profile_slug: str = "default"
+    team_name: str | None = None
+    shared_project: SharedProjectSpec | None = None
 
 
 class UserCreateRequest(BaseModel):
@@ -462,8 +478,23 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         )
         user = dict(db().execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
         profile = create_profile_for(user, payload.profile_slug, payload.profile_name, is_default=True)
+        team_name = payload.team_name or cfg.get("default_team_name") or "Team"
+        set_team_name(db(), team_name)
+        provision_user_workspace(db(), cfg, user)
+        shared = None
+        if payload.shared_project:
+            shared_name = payload.shared_project.name or team_name
+            shared = provision_shared_project(
+                db(), cfg, validate_slug(payload.shared_project.slug), shared_name, user
+            )
         token = create_token(user["id"])
-        return {"token": token, "user": public_user(user), "profile": profile_payload(profile)}
+        return {
+            "token": token,
+            "user": public_user(user),
+            "profile": profile_payload(profile),
+            "team_name": team_name,
+            "shared_project": project_payload(shared) if shared else None,
+        }
 
     @app.post("/auth/login")
     def login(payload: LoginRequest):
