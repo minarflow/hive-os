@@ -6,3 +6,4 @@ export type ChatSession = { id: number; title: string; runner_id: string; profil
 export type ChatMessage = { id?: number; role: 'user' | 'system' | 'assistant' | 'error'; content: string; created_at?: string }
 export type RunEvent = { id: number; seq: number; type: string; run_id: number; session_id: number; project_id?: number | null; payload: Record<string, unknown>; created_at: string }
 export type View = 'chat' | 'projects' | 'linc-projects' | 'profiles' | 'runners' | 'settings' | 'users'
+export type FileEntry = { name: string; type: 'dir' | 'file'; size: number }
