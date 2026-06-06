@@ -2,7 +2,7 @@ import React from 'react'
 import { getSetupStatus, logout, me } from './api/auth'
 import { listProfiles } from './api/profiles'
 import { listProjects } from './api/projects'
-import { listSessions } from './api/sessions'
+import { listSessions, createSession } from './api/sessions'
 import { api } from './api/client'
 import type { ChatSession, Profile, Project, Runner, User, View } from './types'
 import { AppShell } from './components/shell/AppShell'
@@ -74,6 +74,13 @@ export function App() {
     await refreshAll(nextToken)
   }
 
+  async function startNewSession() {
+    const created = await createSession(token, { title: 'New chat', project_slug: activeProject?.slug || null, profile_id: activeProfile?.id || null })
+    setActiveSession(created)
+    setView('chat')
+    await refreshAll(token)
+  }
+
   async function doLogout() {
     if (token) await logout(token).catch(() => undefined)
     localStorage.removeItem('hive-token')
@@ -100,7 +107,7 @@ export function App() {
       user={user}
     >
       {error && <div className="error-bar">{error}</div>}
-      {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={setActiveProject} onSession={setActiveSession} onRefresh={refreshAll} />}
+      {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={setActiveProject} onSession={setActiveSession} onRefresh={refreshAll} onNewSession={startNewSession} />}
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
