@@ -21,6 +21,7 @@ from .runners import augmented_path, detect_runners
 from .profile_seed import seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
+from . import fsapi
 
 
 class LoginRequest(BaseModel):
@@ -108,6 +109,21 @@ class ChatSendRequest(BaseModel):
     profile_id: int | None = None
     runner_id: str = "hermes"
     model: str | None = None
+
+
+class FileWriteRequest(BaseModel):
+    content: str
+
+
+class FsPathRequest(BaseModel):
+    path: str = Field(min_length=1)
+
+
+class FsRenameRequest(BaseModel):
+    from_: str = Field(min_length=1, alias="from")
+    to: str = Field(min_length=1)
+
+    model_config = {"populate_by_name": True}
 
 
 class RunWorker:
@@ -634,6 +650,72 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             (project["id"],),
         ).fetchall()
         return {"members": [dict(row) for row in rows]}
+
+    def _project_root(slug: str, user: dict[str, Any]) -> Path:
+        project = visible_project(slug, user)
+        return Path(project["path"])
+
+    def _audit_fs(user: dict[str, Any], action: str, slug: str, path: str) -> None:
+        db().execute(
+            "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) VALUES (?, ?, 'project', ?, ?)",
+            (user["id"], action, slug, json.dumps({"path": path})),
+        )
+
+    @app.get("/api/projects/{slug}/tree")
+    def project_tree(slug: str, path: str = "", user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            return {"path": path, "entries": fsapi.list_tree(root, path)}
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.get("/api/projects/{slug}/file")
+    def project_read_file(slug: str, path: str, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            return {"path": path, "content": fsapi.read_file(root, path)}
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @app.put("/api/projects/{slug}/file")
+    def project_write_file(slug: str, path: str, payload: FileWriteRequest, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            fsapi.write_file(root, path, payload.content)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _audit_fs(user, "file.write", slug, path)
+        return {"ok": True, "path": path}
+
+    @app.post("/api/projects/{slug}/fs/mkdir")
+    def project_mkdir(slug: str, payload: FsPathRequest, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            fsapi.mkdir(root, payload.path)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _audit_fs(user, "fs.mkdir", slug, payload.path)
+        return {"ok": True, "path": payload.path}
+
+    @app.post("/api/projects/{slug}/fs/rename")
+    def project_rename(slug: str, payload: FsRenameRequest, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            fsapi.rename(root, payload.from_, payload.to)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _audit_fs(user, "fs.rename", slug, f"{payload.from_} -> {payload.to}")
+        return {"ok": True}
+
+    @app.delete("/api/projects/{slug}/fs")
+    def project_delete(slug: str, path: str, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        try:
+            fsapi.delete(root, path)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        _audit_fs(user, "fs.delete", slug, path)
+        return {"ok": True, "path": path}
 
     @app.get("/api/sessions")
     def list_sessions(user: dict[str, Any] = Depends(current_user)):
