@@ -34,3 +34,7 @@ nohup.out
 logs/
 *.log
 .cache/
+
+# Local dev runtime (DB, seeded credentials, scratch projects)
+apps/api/.dev/
+.dev/

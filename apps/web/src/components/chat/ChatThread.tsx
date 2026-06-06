@@ -1,13 +1,49 @@
+import React from 'react'
 import type { ChatMessage, RunEvent } from '../../types'
+import { MessageContent } from './MessageContent'
 
-export function ChatThread({ messages, events, pendingRunId, pendingText }: { messages: ChatMessage[]; events: RunEvent[]; pendingRunId?: number | null; pendingText?: string }) {
-  const completedRunIds = new Set(events.filter(e => ['message.complete', 'run.completed', 'run.failed', 'run.cancelled'].includes(e.type)).map(e => e.run_id))
-  const deltas = pendingRunId && !completedRunIds.has(pendingRunId)
-    ? events.filter(e => e.type === 'message.delta' && e.run_id === pendingRunId).map(e => String(e.payload.text || '')).join('')
-    : ''
-  return <div className="thread"><div className="chat-log">
-    {messages.map((message, index) => <div className={`chat-line ${message.role}`} key={message.id ?? index}><strong>{message.role === 'user' ? 'You' : message.role === 'assistant' ? 'Hermes' : message.role === 'error' ? 'Run error' : 'Hive OS'}</strong><span>{message.content}</span></div>)}
-    {deltas && <div className="chat-line assistant"><strong>Hermes streaming</strong><span>{deltas}</span></div>}
-    {pendingText && <div className="chat-line pending"><strong>Run</strong><span><i className="typing-dot" /> {pendingText}</span></div>}
-  </div></div>
+const ROLE_LABEL: Record<string, string> = { user: 'You', assistant: 'Hermes', error: 'Run error', system: 'Hive OS' }
+
+export function ChatThread({ messages, events, pendingRunId }: { messages: ChatMessage[]; events: RunEvent[]; pendingRunId?: number | null; pendingText?: string }) {
+  // Keep the streaming line visible until the run truly ends (completed/failed/
+  // cancelled) — NOT on message.complete — so the live text doesn't vanish for a
+  // frame before the stored message arrives (anti-flicker).
+  const endedRunIds = new Set(events.filter(e => ['run.completed', 'run.failed', 'run.cancelled'].includes(e.type)).map(e => e.run_id))
+  const live = !!pendingRunId && !endedRunIds.has(pendingRunId)
+  const streaming = live ? events.filter(e => e.type === 'message.delta' && e.run_id === pendingRunId).map(e => String(e.payload.text || '')).join('') : ''
+  const waiting = live && !streaming
+
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const pinnedRef = React.useRef(true)
+  const [atBottom, setAtBottom] = React.useState(true)
+
+  const onScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    const pinned = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    pinnedRef.current = pinned
+    setAtBottom(pinned)
+  }
+
+  // Follow new content only when the user is already near the bottom.
+  React.useLayoutEffect(() => {
+    if (pinnedRef.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+  }, [messages, streaming, waiting])
+
+  const scrollToBottom = () => {
+    const el = scrollRef.current
+    if (el) { el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' }); pinnedRef.current = true; setAtBottom(true) }
+  }
+
+  const empty = messages.length === 0 && !live
+
+  return <div className="thread" ref={scrollRef} onScroll={onScroll}>
+    <div className="chat-log">
+      {empty && <div className="chat-empty"><div className="chat-empty-mark">✦</div><h3>Start a conversation</h3><p>Ask Hermes anything in this project. Type <code>/</code> for commands.</p></div>}
+      {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{ROLE_LABEL[message.role] || 'Hive OS'}</strong>{message.role === 'user' ? <span>{message.content}</span> : <MessageContent content={message.content} />}</div>)}
+      {streaming && <div className="chat-line assistant enter"><strong>Hermes</strong><MessageContent content={streaming} /></div>}
+      {waiting && <div className="chat-line pending enter"><strong>Hermes</strong><span className="typing"><i /><i /><i /></span></div>}
+    </div>
+    {!atBottom && <button className="scroll-bottom" onClick={scrollToBottom} aria-label="Scroll to latest" title="Scroll to latest">↓</button>}
+  </div>
 }

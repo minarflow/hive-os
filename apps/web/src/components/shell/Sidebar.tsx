@@ -19,6 +19,8 @@ export function Sidebar(props: {
   onClose: () => void
   onLogout: () => void
   onNewChat: () => void
+  onRenameSession: (id: number, title: string) => void
+  onDeleteSession: (id: number) => void
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
   onSelectView: (view: View) => void
@@ -40,7 +42,13 @@ export function Sidebar(props: {
       return <button className={`nav-item ${props.currentView === item.id && !item.action ? 'active' : ''}`} key={item.id} onClick={onClick}><span className="nav-icon"><Icon /></span><strong>{item.label}</strong></button>
     })}</section>
     {shared.length > 0 && <section className="nav-group projects-mini"><button className="group-toggle"><span>Shared</span><span>{shared.length}</span></button>{shared.map(project => <button className={`project-row ${props.activeProject?.slug === project.slug ? 'active' : ''}`} key={project.slug} onClick={() => { props.onSelectProject(project); props.onSelectView('chat'); props.onClose() }} title={`${project.slug} · ${project.role}`}><span className="status-dot" /><div><strong>{project.name}</strong></div></button>)}</section>}
-    {props.sessions.length > 0 && <section className="nav-group"><button className="group-toggle"><span>Sessions</span><span>{props.sessions.length}</span></button>{props.sessions.slice(0, 12).map(session => <button className={`project-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} onClick={() => { props.onSelectSession(session); props.onClose() }} title={`${session.project_slug || 'no project'} · ${session.profile_slug || 'profile'}`}><span className="status-dot" /><div><strong>{session.title}</strong></div></button>)}</section>}
+    {props.sessions.length > 0 && <section className="nav-group"><button className="group-toggle"><span>Sessions</span><span>{props.sessions.length}</span></button>{props.sessions.slice(0, 20).map(session => <div className={`project-row session-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} title={`${session.project_slug || 'no project'} · ${session.profile_slug || 'profile'}`}>
+      <button className="row-main" onClick={() => { props.onSelectSession(session); props.onClose() }}><span className="status-dot" /><strong>{session.title}</strong></button>
+      <span className="row-actions">
+        <button className="row-action" title="Rename" aria-label="Rename session" onClick={e => { e.stopPropagation(); const t = window.prompt('Rename session', session.title); if (t && t.trim()) props.onRenameSession(session.id, t.trim()) }}>✎</button>
+        <button className="row-action danger" title="Delete" aria-label="Delete session" onClick={e => { e.stopPropagation(); if (window.confirm(`Delete session "${session.title}"?`)) props.onDeleteSession(session.id) }}>🗑</button>
+      </span>
+    </div>)}</section>}
     <div className="user-card"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div><button className={`icon-button settings-button ${props.currentView === 'settings' ? 'active' : ''}`} title="Settings" aria-label="Settings" onClick={() => { props.onSelectView('settings'); props.onClose() }}><IconGear /></button></div>
   </div>
 }

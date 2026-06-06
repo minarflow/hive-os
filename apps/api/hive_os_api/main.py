@@ -122,6 +122,10 @@ class SessionCreateRequest(BaseModel):
     visibility: str = Field(default="private", pattern="^(private|project)$")
 
 
+class SessionUpdateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
 class MessageCreateRequest(BaseModel):
     role: str = Field(pattern="^(user|system|assistant)$")
     content: str = Field(min_length=1)
@@ -828,6 +832,30 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             (cur.lastrowid,),
         ).fetchone()
         return session_payload(dict(row))
+
+    @app.patch("/api/sessions/{session_id}")
+    def update_session(session_id: int, payload: SessionUpdateRequest, user: dict[str, Any] = Depends(current_user)):
+        session = session_for_user(session_id, user)
+        if session["owner_user_id"] != user["id"]:
+            raise HTTPException(status_code=403, detail="only the session owner can rename it")
+        title = payload.title.strip() or session["title"]
+        db().execute("UPDATE sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (title, session_id))
+        row = db().execute(
+            """
+            SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name
+            FROM sessions s LEFT JOIN projects p ON p.id=s.project_id LEFT JOIN profiles pr ON pr.id=s.profile_id WHERE s.id=?
+            """,
+            (session_id,),
+        ).fetchone()
+        return session_payload(dict(row))
+
+    @app.delete("/api/sessions/{session_id}")
+    def delete_session(session_id: int, user: dict[str, Any] = Depends(current_user)):
+        session = session_for_user(session_id, user)
+        if session["owner_user_id"] != user["id"]:
+            raise HTTPException(status_code=403, detail="only the session owner can delete it")
+        db().execute("DELETE FROM sessions WHERE id = ?", (session_id,))
+        return {"ok": True, "id": session_id}
 
     @app.get("/api/sessions/{session_id}/messages")
     def list_messages(session_id: int, user: dict[str, Any] = Depends(current_user)):

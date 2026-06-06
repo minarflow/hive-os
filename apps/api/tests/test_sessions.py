@@ -61,3 +61,19 @@ def test_session_messages_are_owner_scoped(tmp_path):
     sid = client.post("/api/sessions", headers={"Authorization": f"Bearer {aris}"}, json={"title": "Private"}).json()["id"]
 
     assert client.get(f"/api/sessions/{sid}/messages", headers={"Authorization": f"Bearer {kuya}"}).status_code == 404
+
+
+def test_session_rename_and_delete(tmp_path):
+    client, headers = authed(tmp_path)
+    sid = client.post("/api/sessions", headers=headers, json={"title": "Old name"}).json()["id"]
+
+    renamed = client.patch(f"/api/sessions/{sid}", headers=headers, json={"title": "New name"})
+    assert renamed.status_code == 200
+    assert renamed.json()["title"] == "New name"
+    assert client.get("/api/sessions", headers=headers).json()["sessions"][0]["title"] == "New name"
+
+    deleted = client.delete(f"/api/sessions/{sid}", headers=headers)
+    assert deleted.status_code == 200
+    assert client.get("/api/sessions", headers=headers).json()["sessions"] == []
+    # messages of a deleted session are gone (cascade) -> session not found
+    assert client.get(f"/api/sessions/{sid}/messages", headers=headers).status_code == 404

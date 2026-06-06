@@ -2,7 +2,7 @@ import React from 'react'
 import { getSetupStatus, logout, me } from './api/auth'
 import { listProfiles } from './api/profiles'
 import { listProjects } from './api/projects'
-import { listSessions, createSession } from './api/sessions'
+import { listSessions, createSession, renameSession, deleteSession } from './api/sessions'
 import { api } from './api/client'
 import type { ChatSession, Profile, Project, Runner, User, View } from './types'
 import { AppShell } from './components/shell/AppShell'
@@ -81,6 +81,17 @@ export function App() {
     setView('chat')
   }
 
+  async function handleRenameSession(id: number, title: string) {
+    await renameSession(token, id, title)
+    await refreshAll(token)
+  }
+
+  async function handleDeleteSession(id: number) {
+    await deleteSession(token, id)
+    setActiveSession(current => (current?.id === id ? null : current))
+    await refreshAll(token)
+  }
+
   async function doLogout() {
     if (token) await logout(token).catch(() => undefined)
     localStorage.removeItem('hive-token')
@@ -99,6 +110,8 @@ export function App() {
       currentView={view}
       onLogout={() => void doLogout()}
       onNewChat={() => void startNewSession()}
+      onRenameSession={(id, title) => void handleRenameSession(id, title)}
+      onDeleteSession={id => void handleDeleteSession(id)}
       onSelectProject={project => setActiveProject(project)}
       onSelectSession={session => { setActiveSession(session); setView('chat') }}
       onSelectView={setView}

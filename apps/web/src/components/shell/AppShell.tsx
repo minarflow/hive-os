@@ -23,6 +23,8 @@ export function AppShell(props: {
   currentView: View
   onLogout: () => void
   onNewChat: () => void
+  onRenameSession: (id: number, title: string) => void
+  onDeleteSession: (id: number) => void
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
   onSelectView: (view: View) => void

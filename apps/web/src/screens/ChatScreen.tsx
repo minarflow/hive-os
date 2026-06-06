@@ -34,11 +34,35 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     setMessages(body.messages); setEvents(eventBody.events)
   }, [activeSession?.id, props.token])
 
+  // Coalesce high-frequency message.delta events and flush at ~30fps so the
+  // markdown thread isn't re-parsed on every token. Control events flush now.
+  const bufferRef = React.useRef<RunEvent[]>([])
+  const timerRef = React.useRef<number | null>(null)
+  const flush = React.useCallback(() => {
+    timerRef.current = null
+    const buf = bufferRef.current
+    if (!buf.length) return
+    bufferRef.current = []
+    setEvents(current => {
+      const seen = new Set(current.map(e => e.id))
+      const add = buf.filter(e => !seen.has(e.id))
+      return add.length ? [...current, ...add] : current
+    })
+  }, [])
+
   const onEvent = React.useCallback((event: RunEvent) => {
-    setEvents(current => current.some(e => e.id === event.id) ? current : [...current, event])
-    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) setBusyRun(null)
-    if (event.type === 'message.complete') void loadMessages(event.session_id)
-  }, [loadMessages])
+    bufferRef.current.push(event)
+    if (event.type === 'message.delta') {
+      if (timerRef.current == null) timerRef.current = window.setTimeout(flush, 33)
+      return
+    }
+    if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
+    flush()
+    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void loadMessages(event.session_id) }
+    else if (event.type === 'message.complete') void loadMessages(event.session_id)
+  }, [flush, loadMessages])
+
+  React.useEffect(() => () => { if (timerRef.current != null) clearTimeout(timerRef.current) }, [])
 
   const { connected } = useEventStream(props.token, activeSession?.id || null, onEvent)
 
