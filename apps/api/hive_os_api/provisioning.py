@@ -78,6 +78,22 @@ def provision_shared_project(conn: sqlite3.Connection, cfg: dict[str, Any], slug
     return project
 
 
+def provision_user_workspace(conn: sqlite3.Connection, cfg: dict[str, Any], user: dict[str, Any]) -> None:
+    """Provision a user's private project and join all shared projects. Never raises."""
+    if not cfg.get("auto_provision", True):
+        return
+    try:
+        provision_private_project(conn, cfg, user)
+        for row in conn.execute("SELECT id FROM projects WHERE visibility = 'shared'").fetchall():
+            ensure_member(conn, row["id"], user["id"], "collaborator")
+    except Exception:
+        logger.exception("provision_user_workspace failed for user %s", user.get("username"))
+        try:
+            _audit(conn, user.get("id"), "workspace.provision.error", str(user.get("username")))
+        except Exception:
+            pass
+
+
 def get_team_name(conn: sqlite3.Connection, cfg: dict[str, Any]) -> str:
     row = conn.execute("SELECT value FROM app_settings WHERE key = 'team_name'").fetchone()
     if row and row["value"]:

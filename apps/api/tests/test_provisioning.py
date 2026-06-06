@@ -133,3 +133,40 @@ def test_provision_shared_idempotent(tmp_path):
     provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
     count = conn.execute("SELECT COUNT(*) AS c FROM projects WHERE slug = 'linc'").fetchone()["c"]
     assert count == 1
+
+
+def test_user_workspace_joins_existing_shared(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "admin", role="environment_admin")
+    provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
+    bob = add_user(conn, "bob")
+    provisioning.provision_user_workspace(conn, cfg, bob)
+    assert conn.execute("SELECT COUNT(*) AS c FROM projects WHERE slug = 'bob'").fetchone()["c"] == 1
+    shared_id = conn.execute("SELECT id FROM projects WHERE slug = 'linc'").fetchone()["id"]
+    assert conn.execute(
+        "SELECT COUNT(*) AS c FROM project_members WHERE project_id = ? AND user_id = ?", (shared_id, bob["id"])
+    ).fetchone()["c"] == 1
+
+
+def test_user_workspace_error_is_isolated(tmp_path, monkeypatch):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    bob = add_user(conn, "bob")
+
+    def boom(*a, **k):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(provisioning, "scaffold_project_dir", boom)
+    provisioning.provision_user_workspace(conn, cfg, bob)  # must NOT raise
+    actions = [r["action"] for r in conn.execute("SELECT action FROM audit_log").fetchall()]
+    assert "workspace.provision.error" in actions
+
+
+def test_auto_provision_disabled_is_noop(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    cfg["auto_provision"] = False
+    bob = add_user(conn, "bob")
+    provisioning.provision_user_workspace(conn, cfg, bob)
+    assert conn.execute("SELECT COUNT(*) AS c FROM projects").fetchone()["c"] == 0
