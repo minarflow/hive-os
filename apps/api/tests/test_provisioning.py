@@ -170,3 +170,26 @@ def test_auto_provision_disabled_is_noop(tmp_path):
     bob = add_user(conn, "bob")
     provisioning.provision_user_workspace(conn, cfg, bob)
     assert conn.execute("SELECT COUNT(*) AS c FROM projects").fetchone()["c"] == 0
+
+
+def test_backfill_all_users(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    admin = add_user(conn, "admin", role="environment_admin")
+    add_user(conn, "bob")
+    add_user(conn, "carol")
+    provisioning.provision_shared_project(conn, cfg, "linc", "Linc", admin)
+    summary = provisioning.backfill(conn, cfg)
+    assert summary["users"] == 3
+    assert conn.execute("SELECT COUNT(*) AS c FROM projects WHERE visibility = 'private'").fetchone()["c"] == 3
+    shared_id = conn.execute("SELECT id FROM projects WHERE slug = 'linc'").fetchone()["id"]
+    assert conn.execute("SELECT COUNT(*) AS c FROM project_members WHERE project_id = ?", (shared_id,)).fetchone()["c"] == 3
+
+
+def test_backfill_idempotent(tmp_path):
+    conn = make_db()
+    cfg = make_cfg(tmp_path)
+    add_user(conn, "bob")
+    provisioning.backfill(conn, cfg)
+    provisioning.backfill(conn, cfg)
+    assert conn.execute("SELECT COUNT(*) AS c FROM projects").fetchone()["c"] == 1

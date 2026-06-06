@@ -94,6 +94,19 @@ def provision_user_workspace(conn: sqlite3.Connection, cfg: dict[str, Any], user
             pass
 
 
+def backfill(conn: sqlite3.Connection, cfg: dict[str, Any]) -> dict[str, int]:
+    """Ensure every user has a private project and membership in all shared projects."""
+    if not cfg.get("auto_provision", True):
+        return {"users": 0}
+    users = [dict(r) for r in conn.execute("SELECT * FROM users").fetchall()]
+    shared = [dict(r) for r in conn.execute("SELECT id FROM projects WHERE visibility = 'shared'").fetchall()]
+    for user in users:
+        provision_private_project(conn, cfg, user)
+        for s in shared:
+            ensure_member(conn, s["id"], user["id"], "collaborator")
+    return {"users": len(users)}
+
+
 def get_team_name(conn: sqlite3.Connection, cfg: dict[str, Any]) -> str:
     row = conn.execute("SELECT value FROM app_settings WHERE key = 'team_name'").fetchone()
     if row and row["value"]:
