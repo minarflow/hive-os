@@ -240,7 +240,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .rail-toggle { display: none; }
 .rail-scrim { display: none; }
 @media (max-width: 1279px) {
-  .app-shell .right-rail { position: fixed; top: 0; right: 0; height: 100%; width: min(360px, 86vw); transform: translateX(100%); transition: transform .2s ease; z-index: 40; box-shadow: -8px 0 24px rgba(0,0,0,.18); }
+  .app-shell .right-rail { display: flex; position: fixed; top: 0; right: 0; height: 100%; width: min(360px, 86vw); transform: translateX(100%); transition: transform .2s ease; z-index: 40; box-shadow: -8px 0 24px rgba(0,0,0,.18); }
   .app-shell.rail-open .right-rail { transform: translateX(0); }
   .app-shell.rail-open .rail-scrim { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,.35); border: 0; }
   .rail-toggle { display: inline-flex; }
