@@ -295,3 +295,24 @@ def test_startup_backfills_existing_users(tmp_path):
         got = c2.execute("SELECT COUNT(*) AS c FROM projects WHERE slug = 'legacy'").fetchone()["c"]
         c2.close()
         assert got == 1
+
+
+def test_create_shared_project_enrolls_all_and_scaffolds(tmp_path):
+    client = _client(tmp_path)
+    boot = client.post(
+        "/api/setup/bootstrap",
+        json={"username": "admin", "password": "password123",
+              "profile_slug": "default", "profile_name": "Default",
+              "team_name": "Linc", "shared_project": {"slug": "linc", "name": "Linc"}},
+    ).json()
+    token = boot["token"]
+    client.post("/api/users", headers={"Authorization": f"Bearer {token}"},
+                json={"username": "bob", "password": "password123", "role": "member",
+                      "profile_slug": "default", "profile_name": "Default"})
+    resp = client.post("/api/projects", headers={"Authorization": f"Bearer {token}"},
+                       json={"slug": "ops", "name": "Ops", "visibility": "shared"})
+    assert resp.status_code == 201, resp.text
+    assert (tmp_path / "ws" / "projects" / "ops" / "wiki").is_dir()
+    bob_token = client.post("/auth/login", json={"username": "bob", "password": "password123"}).json()["token"]
+    slugs = {p["slug"] for p in client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]}
+    assert "ops" in slugs

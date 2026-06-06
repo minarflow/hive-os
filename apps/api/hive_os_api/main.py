@@ -646,12 +646,20 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail="project slug already exists")
         path = str(Path(cfg["workspace_root"]) / "projects" / payload.slug)
         run_projectctl("create-project", payload.slug, "--owner", user["os_user"])
+        scaffold_project_dir(cfg, payload.slug)
         cur = db().execute(
             "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES (?, ?, ?, ?, ?)",
             (payload.slug, payload.name, path, user["id"], payload.visibility),
         )
         project_id = cur.lastrowid
         db().execute("INSERT INTO project_members(project_id, user_id, role) VALUES (?, ?, 'owner')", (project_id, user["id"]))
+        if payload.visibility == "shared":
+            for row in db().execute("SELECT id FROM users").fetchall():
+                if row["id"] != user["id"]:
+                    db().execute(
+                        "INSERT OR IGNORE INTO project_members(project_id, user_id, role) VALUES (?, ?, 'collaborator')",
+                        (project_id, row["id"]),
+                    )
         db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'project.create', 'project', ?)", (user["id"], payload.slug))
         row = dict(db().execute("SELECT p.*, ? AS owner, 'owner' AS role FROM projects p WHERE p.id = ?", (user["username"], project_id)).fetchone())
         return project_payload(row)
