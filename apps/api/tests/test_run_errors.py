@@ -10,6 +10,7 @@ from hive_os_api.main import create_app
 class FakeAcpProcess:
     def __init__(self, behavior: str):
         self.behavior = behavior
+        self.cancelled = False
 
     async def load_session(self, session_id, cwd):
         raise Exception("not loadable")  # force a fresh new_session
@@ -20,20 +21,29 @@ class FakeAcpProcess:
     async def prompt(self, session_id, text, on_update, timeout=600):
         if self.behavior == "fail":
             raise Exception("boom from runner")
+        if self.behavior == "timeout":
+            # Simulate a wedged agent turn: streams a little, then never returns,
+            # so the worker's asyncio.wait_for fires a TimeoutError.
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "partial..."}})
+            raise asyncio.TimeoutError()
         if self.behavior == "stream":
             on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "hello world"}})
         return "end_turn"
 
     def cancel(self, session_id):
-        pass
+        self.cancelled = True
 
 
 class FakeAcpManager:
     def __init__(self, behavior: str):
         self.behavior = behavior
+        self.recycled: list[tuple[str, str]] = []
 
     async def get(self, hermes_home, cwd=None):
         return FakeAcpProcess(self.behavior)
+
+    async def recycle(self, hermes_home, cwd=None):
+        self.recycled.append((hermes_home, cwd))
 
     async def shutdown(self):
         pass
@@ -69,6 +79,18 @@ def test_failed_run_stores_error_message(tmp_path):
     assert err and err[-1]["content"].startswith("Run failed")
     events = client.get(f"/api/sessions/{session['id']}/events", headers=headers).json()["events"]
     assert any(e["type"] == "run.failed" for e in events)
+
+
+def test_timed_out_run_recycles_agent_process(tmp_path):
+    # A run that times out must recycle the cached agent process, otherwise the
+    # next message in the project gets "Queued for the next turn" forever against
+    # the still-wedged Hermes session.
+    client, headers, session = _setup(tmp_path, "timeout")
+    events = client.get(f"/api/sessions/{session['id']}/events", headers=headers).json()["events"]
+    failed = [e for e in events if e["type"] == "run.failed"]
+    assert failed and "timed out" in str(failed[-1]["payload"]).lower()
+    # The whole point of the fix: the wedged process is evicted from the cache.
+    assert client.app.state.acp_manager.recycled, "timed-out run did not recycle the agent process"
 
 
 def test_streamed_run_persists_assistant_message_and_acp_session(tmp_path):

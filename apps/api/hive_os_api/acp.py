@@ -215,6 +215,22 @@ class AcpManager:
             self._procs[key] = proc
             return proc
 
+    async def recycle(self, hermes_home: str, cwd: str) -> None:
+        """Kill and evict the cached process for (hermes_home, cwd).
+
+        Used when a run times out: `session/cancel` is fire-and-forget and a
+        Hermes turn wedged inside a blocking tool call can't process it, so the
+        cached process would carry the stuck turn into the next prompt (every
+        later message returns "Queued for the next turn"). Terminating the
+        process guarantees the next run spawns a fresh agent.
+        """
+        key = (hermes_home, cwd)
+        async with self._lock:
+            proc = self._procs.pop(key, None)
+        if proc:
+            logger.info("acp: recycling process for %s (cwd=%s)", hermes_home, cwd)
+            await proc.stop()
+
     async def shutdown(self) -> None:
         for proc in list(self._procs.values()):
             await proc.stop()

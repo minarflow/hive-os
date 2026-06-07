@@ -451,10 +451,18 @@ class RunWorker:
         except asyncio.TimeoutError:
             # Abort the agent's turn so it stops working in the background and the
             # next message isn't "queued for the next turn" against a busy session.
+            # session/cancel is best-effort and a turn wedged inside a blocking
+            # tool call can't process it, so also recycle (kill) the cached agent
+            # process — otherwise the wedged session is reused and every later
+            # message in this project returns "Queued for the next turn".
             entry = self.active_runs.get(run_id)
             if entry:
                 try: entry[0].cancel(entry[1])
                 except Exception: pass
+            try:
+                await self.app.state.acp_manager.recycle(hermes_home, cwd)
+            except Exception:
+                logging.getLogger("hive_os.worker").exception("failed to recycle agent process after timeout")
             with self.app.state.db_lock:
                 salvaged = self._reconstruct_text(run_id)
                 if salvaged:
