@@ -193,6 +193,48 @@ class FsRenameRequest(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class EventHub:
+    """In-process pub/sub so event streams wake the instant a new event is
+    written, instead of polling. Durability still goes through the DB; this only
+    removes the polling latency. notify() is safe to call from any thread."""
+
+    def __init__(self) -> None:
+        self._waiters: dict[int, set[asyncio.Event]] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
+
+    def bind_loop(self, loop: asyncio.AbstractEventLoop) -> None:
+        self._loop = loop
+
+    def subscribe(self, session_id: int) -> asyncio.Event:
+        ev = asyncio.Event()
+        self._waiters.setdefault(session_id, set()).add(ev)
+        return ev
+
+    def unsubscribe(self, session_id: int, ev: asyncio.Event) -> None:
+        bucket = self._waiters.get(session_id)
+        if bucket:
+            bucket.discard(ev)
+            if not bucket:
+                self._waiters.pop(session_id, None)
+
+    def _wake(self, session_id: int) -> None:
+        for ev in self._waiters.get(session_id, ()):  # set is a snapshot view; ok for set()
+            ev.set()
+
+    def notify(self, session_id: int) -> None:
+        loop = self._loop
+        if loop is None:
+            return
+        try:
+            running = asyncio.get_running_loop()
+        except RuntimeError:
+            running = None
+        if running is loop:
+            self._wake(session_id)            # already on the loop thread
+        else:
+            loop.call_soon_threadsafe(self._wake, session_id)  # from a worker/threadpool thread
+
+
 class RunWorker:
     def __init__(self, app: FastAPI):
         self.app = app
@@ -323,6 +365,7 @@ class RunWorker:
             "INSERT INTO events(run_id, session_id, project_id, seq, type, payload) VALUES (?, ?, ?, ?, ?, ?)",
             (run_id, session_id, project_id, seq, event_type, json.dumps(payload)),
         )
+        self.app.state.hub.notify(session_id)  # wake live streams immediately
 
     async def execute_run(self, run: dict[str, Any]) -> None:
         db = self.app.state.worker_db
@@ -442,6 +485,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        app.state.hub.bind_loop(asyncio.get_running_loop())
         if cfg.get("auto_provision", True):
             try:
                 backfill(app.state.db, cfg)
@@ -475,6 +519,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.worker = RunWorker(app)
     app.state.acp_manager = AcpManager()
     app.state.login_attempts = {}  # ip -> [monotonic timestamps] for login throttling
+    app.state.hub = EventHub()
 
     web_dist_path = cfg.get("web_dist_path")
     if web_dist_path and Path(web_dist_path).exists():
@@ -1417,16 +1462,25 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         session_for_user(session_id, user)
 
         async def gen():
+            hub = app.state.hub
+            ev = hub.subscribe(session_id)
             last_id = 0
-            while not await request.is_disconnected():
-                rows = db().execute("SELECT * FROM events WHERE session_id = ? AND id > ? ORDER BY id ASC", (session_id, last_id)).fetchall()
-                for row in rows:
-                    if row["seq"] <= after_seq:
-                        last_id = max(last_id, row["id"])
-                        continue
-                    last_id = row["id"]
-                    yield f"id: {row['id']}\nevent: {row['type']}\ndata: {json.dumps(event_payload(row))}\n\n"
-                await asyncio.sleep(0.5)
+            try:
+                while not await request.is_disconnected():
+                    ev.clear()  # clear before reading so a notify during the read isn't lost
+                    rows = db().execute("SELECT * FROM events WHERE session_id = ? AND id > ? ORDER BY id ASC", (session_id, last_id)).fetchall()
+                    for row in rows:
+                        if row["seq"] <= after_seq:
+                            last_id = max(last_id, row["id"])
+                            continue
+                        last_id = row["id"]
+                        yield f"id: {row['id']}\nevent: {row['type']}\ndata: {json.dumps(event_payload(row))}\n\n"
+                    try:
+                        await asyncio.wait_for(ev.wait(), timeout=15)  # instant wake on new event; 15s = keepalive fallback
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+            finally:
+                hub.unsubscribe(session_id, ev)
 
         return StreamingResponse(gen(), media_type="text/event-stream")
 
@@ -1443,16 +1497,24 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             return
         session_for_user(session_id, user)
         await websocket.accept()
+        hub = app.state.hub
+        ev = hub.subscribe(session_id)
         last_id = 0
         try:
             while True:
+                ev.clear()
                 rows = db().execute("SELECT * FROM events WHERE session_id=? AND id>? ORDER BY id ASC", (session_id, last_id)).fetchall()
                 for row in rows:
                     last_id = row["id"]
                     await websocket.send_json(event_payload(row))
-                await asyncio.sleep(0.5)
+                try:
+                    await asyncio.wait_for(ev.wait(), timeout=15)
+                except asyncio.TimeoutError:
+                    pass
         except WebSocketDisconnect:
             return
+        finally:
+            hub.unsubscribe(session_id, ev)
 
     @app.get("/api/runs/{run_id}")
     def get_run(run_id: int, user: dict[str, Any] = Depends(current_user)):
