@@ -836,3 +836,4 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .task-review-bar .primary-button { flex: 0 0 auto; white-space: nowrap; }
 .task-review-bar.done { background: var(--ui-surface-subtle); }
 @media (max-width: 560px) { .task-review-bar { flex-direction: column; align-items: stretch; } .task-review-bar .primary-button { width: 100%; } }
+.hermes-banner { margin: 10px 16px; padding: 9px 13px; border: 1px solid color-mix(in srgb, #c0392b 40%, var(--ui-stroke-secondary)); background: color-mix(in srgb, #c0392b 10%, var(--ui-surface)); color: var(--ui-text-primary); border-radius: 10px; font-size: .85rem; }

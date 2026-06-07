@@ -6,6 +6,7 @@ import { listSessions, createSession, renameSession, deleteSession } from './api
 import { api } from './api/client'
 import type { ChatSession, Profile, Project, Runner, User, View } from './types'
 import { AppShell } from './components/shell/AppShell'
+import { HermesBanner } from './components/shell/HermesBanner'
 import { SetupScreen } from './screens/SetupScreen'
 import { LoginScreen } from './screens/LoginScreen'
 import { RedeemScreen } from './screens/RedeemScreen'
@@ -168,6 +169,7 @@ export function App() {
       user={user}
     >
       {error && <div className="error-bar">{error}</div>}
+      <HermesBanner token={token} />
       {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={setActiveProject} onSession={setActiveSession} onRefresh={refreshAll} onNewSession={startNewSession} />}
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'wiki' && <WikiScreen token={token} projects={projects} />}
