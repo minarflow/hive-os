@@ -12,7 +12,7 @@
 - Backend is TDD: write pytest first, watch it fail, implement, watch it pass, commit.
 - Frontend has no test runner; the gate is `cd apps/web && npm run build` (tsc type-check + Vite build) plus a manual run note. Commit after each task.
 - Run backend tests with: `cd apps/api && uv run pytest -q`
-- All work happens in `/home/kuya/storage/projects/hive-os`.
+- All work happens in `/path/to/hive-os`.
 
 ---
 
@@ -228,7 +228,7 @@ Expected: PASS (all previous 18 + 4 new = 22 passed)
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/api/hive_os_api/profile_seed.py apps/api/hive_os_api/settings.py apps/api/hive_os_api/main.py apps/api/tests/test_profile_seed.py
 git commit -m "feat(api): seed Hermes credentials into new profile homes"
 ```
@@ -423,7 +423,7 @@ Expected: build succeeds, no TypeScript errors.
 - [ ] **Step 10: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/api/hive_os_api/main.py apps/api/tests/test_run_errors.py apps/web/src/components/chat/ChatThread.tsx apps/web/src/styles.css
 git commit -m "feat: surface Hermes run errors in chat instead of silent (no output)"
 ```
@@ -577,12 +577,12 @@ Expected: build succeeds, no TypeScript errors.
 
 - [ ] **Step 7: Manual verification**
 
-Run: `cd /home/kuya/storage/projects/hive-os && bash scripts/dev` (in a background terminal), open `http://127.0.0.1:5177`, log in, type `/new` and confirm a new session is created and the left sidebar reflects it; type `/help` and confirm a system reply appears; type `//hello` and confirm it sends a literal message to Hermes.
+Run: `cd /path/to/hive-os && bash scripts/dev` (in a background terminal), open `http://127.0.0.1:5177`, log in, type `/new` and confirm a new session is created and the left sidebar reflects it; type `/help` and confirm a system reply appears; type `//hello` and confirm it sends a literal message to Hermes.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/web/src/api/commands.ts apps/web/src/components/chat/Composer.tsx apps/web/src/screens/ChatScreen.tsx apps/web/src/App.tsx
 git commit -m "feat(web): wire slash commands incl /new session switch"
 ```
@@ -658,7 +658,7 @@ With the dev server running, open Chrome DevTools device toolbar at 390px width:
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/web/src/components/shell/AppShell.tsx apps/web/src/styles.css
 git commit -m "feat(web): responsive shell with toggleable right rail"
 ```
@@ -846,7 +846,7 @@ Expected: PASS (6 passed)
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/api/hive_os_api/fsapi.py apps/api/tests/test_fsapi.py
 git commit -m "feat(api): path-jailed project filesystem helpers"
 ```
@@ -1042,7 +1042,7 @@ Expected: PASS (all green)
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/api/hive_os_api/main.py apps/api/tests/test_files_api.py
 git commit -m "feat(api): project-scoped file explorer endpoints"
 ```
@@ -1102,7 +1102,7 @@ Expected: build succeeds.
 - [ ] **Step 4: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/web/src/types.ts apps/web/src/api/files.ts
 git commit -m "feat(web): file explorer API client + FileEntry type"
 ```
@@ -1285,7 +1285,7 @@ With `bash scripts/dev` running and logged in: select a project, confirm the rig
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /home/kuya/storage/projects/hive-os
+cd /path/to/hive-os
 git add apps/web/src/components/files apps/web/src/components/shell/RightRail.tsx apps/web/src/components/shell/AppShell.tsx apps/web/src/App.tsx apps/web/src/styles.css
 git commit -m "feat(web): right-sidebar workspace file explorer with inline editor"
 ```

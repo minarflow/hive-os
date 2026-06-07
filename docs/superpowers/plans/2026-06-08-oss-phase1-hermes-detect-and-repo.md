@@ -381,7 +381,7 @@ git commit -m "docs: public README, quickstart, contributing, templates"
 Run:
 ```bash
 git ls-files | grep -E '^\.claude/|^\.impeccable\.md$|nohup\.out' || echo "none tracked"
-git grep -nIE '/home/kuya|minarflowofficial|georgev\.vie|\.ts\.net' -- . ':!docs/superpowers/*' || echo "no PII hits"
+git grep -nIE '~|minarflowofficial|georgev\.vie|\.ts\.net' -- . ':!docs/superpowers/*' || echo "no PII hits"
 ```
 Expected: review each hit; runtime/personal references in non-doc source must be removed or parameterized.
 

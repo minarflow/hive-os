@@ -11,7 +11,7 @@
 **Conventions:**
 - Backend is TDD: write the pytest first, watch it fail, implement, watch it pass, commit.
 - Run tests: `cd apps/api && uv run pytest -q`
-- All work happens in the worktree `/home/kuya/storage/projects/hive-os-onboarding` on branch `onboarding-provisioning`.
+- All work happens in the worktree `/path/to/hive-os-onboarding` on branch `onboarding-provisioning`.
 - When editing `main.py`, locate anchors by **function name / code content**, not line numbers — `main.py` is being edited concurrently by another workstream, so line numbers will drift.
 
 ---
