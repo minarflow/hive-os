@@ -31,8 +31,8 @@ export const fileUrl = (token: string, slug: string, path: string) =>
 
 // Run & preview a project app (managed dev server).
 export type AppStatus = { running: boolean; port?: number; command?: string; log?: string[]; exited?: boolean }
-export const appStart = (token: string, slug: string, command: string, port: number) =>
-  api<{ ok: boolean }>(`/api/projects/${slug}/app/start`, token, { method: 'POST', body: JSON.stringify({ command, port }) })
+export const appStart = (token: string, slug: string, command: string, port: number, dir = '') =>
+  api<{ ok: boolean }>(`/api/projects/${slug}/app/start`, token, { method: 'POST', body: JSON.stringify({ command, port, dir }) })
 export const appStop = (token: string, slug: string) =>
   api<{ ok: boolean }>(`/api/projects/${slug}/app/stop`, token, { method: 'POST' })
 export const appStatus = (token: string, slug: string) =>

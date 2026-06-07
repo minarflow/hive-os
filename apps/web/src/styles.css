@@ -604,6 +604,16 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .app-runner-bar .ui-select { min-width: 0; }
 .app-runner-bar .ui-select:first-child { flex: 1; }
 .app-runner-bar .app-port { width: 90px; flex: none; }
+.app-runner-bar .app-dir { width: 150px; flex: none; }
+@media (max-width: 767px) {
+  .files-head { flex-wrap: wrap; gap: 8px; }
+  .files-hint { display: none; }
+  .files-run { margin-left: auto; }
+  .modal-card.app-runner { width: 100vw; height: 100dvh; max-width: none; border-radius: 0; }
+  .app-runner-bar { flex-wrap: wrap; }
+  .app-runner-bar .ui-select, .app-runner-bar .app-port, .app-runner-bar .app-dir { width: 100%; flex: 1 1 100%; }
+  .app-runner-bar button { flex: 1; }
+}
 .app-runner-body { flex: 1; min-height: 0; border: 1px solid var(--ui-stroke-secondary); border-radius: 12px; overflow: hidden; background: #fff; }
 .app-frame { width: 100%; height: 100%; border: 0; background: #fff; }
 .app-runner-log { padding: 14px; height: 100%; overflow: auto; }

@@ -94,6 +94,7 @@ class InviteRedeemRequest(BaseModel):
 class AppStartRequest(BaseModel):
     command: str = Field(min_length=1)
     port: int = 5180
+    dir: str = ""
 
 
 class TaskCreateRequest(BaseModel):
@@ -1229,8 +1230,16 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.post("/api/projects/{slug}/app/start")
     async def app_start(slug: str, payload: AppStartRequest, user: dict[str, Any] = Depends(current_user)):
         root = _project_root(slug, user)
-        await app.state.app_manager.start(slug, str(root), payload.command, int(payload.port or 5180))
-        _audit_fs(user, "app.start", slug, payload.command)
+        cwd = root
+        if payload.dir:
+            try:
+                cwd = fsapi.resolve_in_project(root, payload.dir)
+            except fsapi.FsError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            if not cwd.is_dir():
+                raise HTTPException(status_code=400, detail="folder not found")
+        await app.state.app_manager.start(slug, str(cwd), payload.command, int(payload.port or 5180))
+        _audit_fs(user, "app.start", slug, f"{payload.dir or '.'}: {payload.command}")
         return {"ok": True}
 
     @app.post("/api/projects/{slug}/app/stop")

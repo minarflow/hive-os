@@ -4,6 +4,7 @@ import { appStart, appStop, appStatus, appViewUrl, type AppStatus } from '../../
 // Run a project's dev server as a managed process and preview it live (proxied).
 export function AppRunner({ token, slug, onClose }: { token: string; slug: string; onClose: () => void }) {
   const [command, setCommand] = React.useState(() => localStorage.getItem('hive.appcmd.' + slug) || 'npm run dev')
+  const [dir, setDir] = React.useState(() => localStorage.getItem('hive.appdir.' + slug) || '')
   const [port, setPort] = React.useState(() => Number(localStorage.getItem('hive.appport.' + slug)) || 5180)
   const [status, setStatus] = React.useState<AppStatus>({ running: false })
   const [busy, setBusy] = React.useState(false)
@@ -15,8 +16,8 @@ export function AppRunner({ token, slug, onClose }: { token: string; slug: strin
 
   async function run() {
     setError(''); setBusy(true)
-    localStorage.setItem('hive.appcmd.' + slug, command); localStorage.setItem('hive.appport.' + slug, String(port))
-    try { await appStart(token, slug, command, port); window.setTimeout(() => setReloadKey(k => k + 1), 1800); poll() }
+    localStorage.setItem('hive.appcmd.' + slug, command); localStorage.setItem('hive.appport.' + slug, String(port)); localStorage.setItem('hive.appdir.' + slug, dir)
+    try { await appStart(token, slug, command, port, dir); window.setTimeout(() => setReloadKey(k => k + 1), 1800); poll() }
     catch (e) { setError(String(e)) } finally { setBusy(false) }
   }
   async function stop() { setBusy(true); try { await appStop(token, slug); poll() } catch (e) { setError(String(e)) } finally { setBusy(false) } }
@@ -24,8 +25,9 @@ export function AppRunner({ token, slug, onClose }: { token: string; slug: strin
   return <div className="modal-scrim" onClick={onClose}><div className="modal-card app-runner" onClick={e => e.stopPropagation()}>
     <div className="app-runner-head"><strong>Run &amp; Preview app</strong><button className="icon-button" onClick={onClose} aria-label="Close">✕</button></div>
     <div className="app-runner-bar">
-      <input className="ui-select" value={command} onChange={e => setCommand(e.target.value)} placeholder="npm run dev" />
-      <input className="ui-select app-port" type="number" value={port} onChange={e => setPort(Number(e.target.value) || 5180)} title="Server harus listen di port ini ($PORT)" />
+      <input className="ui-select app-dir" value={dir} onChange={e => setDir(e.target.value)} placeholder="folder (root)" title="Folder tempat command dijalankan (kosong = root project)" disabled={status.running} />
+      <input className="ui-select" value={command} onChange={e => setCommand(e.target.value)} placeholder="npm run dev" disabled={status.running} />
+      <input className="ui-select app-port" type="number" value={port} onChange={e => setPort(Number(e.target.value) || 5180)} title="Server harus listen di port ini ($PORT)" disabled={status.running} />
       {status.running
         ? <><button className="ghost-button" onClick={() => setReloadKey(k => k + 1)}>Reload</button><button className="ghost-button danger" onClick={() => void stop()} disabled={busy}>Stop</button></>
         : <button className="primary-button" onClick={() => void run()} disabled={busy || !command.trim()}>▶ Run</button>}
