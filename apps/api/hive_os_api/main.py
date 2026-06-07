@@ -1476,4 +1476,27 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     return app
 
 
-app = create_app()
+def _config_from_env() -> dict[str, Any]:
+    """Config for the ASGI entrypoint (`uvicorn hive_os_api.main:app`), from env.
+
+    Mirrors scripts/serve.py so running either way behaves the same and never
+    falls back to the /srv demo defaults.
+    """
+    workspace_root = Path(os.environ.get("HIVEOS_WORKSPACE_ROOT", str(Path.home() / ".local/share/hive-os")))
+    return {
+        "database_path": os.environ.get("HIVEOS_DB_PATH", str(workspace_root / "hive-os.db")),
+        "workspace_root": str(workspace_root),
+        "hermes_profiles_root": os.environ.get("HIVEOS_HERMES_PROFILES_ROOT", str(workspace_root / "hermes-profiles")),
+        "web_dist_path": os.environ.get("HIVEOS_WEB_DIST") or None,
+        "public_base_url": os.environ.get("HIVEOS_PUBLIC_BASE_URL") or None,
+        "projectctl_command": os.environ.get("HIVEOS_PROJECTCTL_COMMAND", "").split() or None,
+    }
+
+
+# Lazily build the ASGI app only when `app` is actually accessed (e.g. by
+# uvicorn), so importing this module (tests, serve.py) has no side effects and
+# never opens the /srv demo database.
+def __getattr__(name: str):
+    if name == "app":
+        return create_app(_config_from_env())
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
