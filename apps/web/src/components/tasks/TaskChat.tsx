@@ -59,7 +59,8 @@ export function TaskChat({ token, task, onTaskChanged }: { token: string; task: 
 
   function kickoff() {
     const brief = `Task: ${task.title}` + (task.description ? `\n\n${task.description}` : '') +
-      `\n\nKerjakan task ini sampai selesai. Simpan semua hasil/deliverable (file, dokumen, dsb) ke folder \`artifacts/\` di project ini.`
+      `\n\nKerjakan task ini sampai selesai. Simpan semua hasil/deliverable (file, dokumen, dsb) ke folder \`artifacts/\` di project ini. ` +
+      `Cukup buat file/deliverable-nya langsung — nggak perlu jalanin server atau browser buat verifikasi kecuali diminta. Setelah selesai, balas singkat apa yang sudah dibuat.`
     void submit(brief)
   }
 

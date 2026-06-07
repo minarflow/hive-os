@@ -441,6 +441,12 @@ class RunWorker:
             self._fail_interrupted(run_id, session_id, project_id, "Interrupted by server shutdown")
             raise
         except asyncio.TimeoutError:
+            # Abort the agent's turn so it stops working in the background and the
+            # next message isn't "queued for the next turn" against a busy session.
+            entry = self.active_runs.get(run_id)
+            if entry:
+                try: entry[0].cancel(entry[1])
+                except Exception: pass
             with self.app.state.db_lock:
                 salvaged = self._reconstruct_text(run_id)
                 if salvaged:

@@ -15,7 +15,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "hermes_profiles_root": None,
     "source_hermes_home": None,
     "run_worker_poll_interval_ms": 250,
-    "run_timeout_seconds": 300,
+    "run_timeout_seconds": 900,
     "auth_token_ttl_hours": 24 * 14,
     "seed_users": [],
     "default_team_name": "Team",
