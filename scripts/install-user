@@ -18,6 +18,17 @@ echo "==> Building web PWA"
 echo "==> Writing config"
 bash "$ROOT/scripts/hive-os" init-config
 
+echo "==> Checking for Hermes runner"
+if command -v hermes >/dev/null 2>&1 && { [ -f "${HERMES_HOME:-$HOME/.hermes}/auth.json" ] || [ -f "${HERMES_HOME:-$HOME/.hermes}/config.yaml" ]; }; then
+  echo "    Hermes detected — Hive will use your existing install."
+else
+  echo "    WARNING: Hermes not detected." >&2
+  echo "    Hive installs fine, but chats won't run until Hermes is set up:" >&2
+  echo "      1) install the Hermes agent CLI (must be on PATH)" >&2
+  echo "      2) run 'hermes -z' to authenticate" >&2
+  echo "      3) restart: systemctl --user restart hive-os" >&2
+fi
+
 # Bake node's bin dir into the service PATH so the spawned `hermes` agent (a node
 # tool) resolves its runtime even under systemd's minimal environment.
 NODE_BIN="$(dirname "$(command -v node 2>/dev/null || echo /usr/bin/node)")"
