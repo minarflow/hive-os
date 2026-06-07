@@ -474,6 +474,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.worker_db = connect(cfg["database_path"])  # dedicated connection for the async run worker
     app.state.worker = RunWorker(app)
     app.state.acp_manager = AcpManager()
+    app.state.login_attempts = {}  # ip -> [monotonic timestamps] for login throttling
 
     web_dist_path = cfg.get("web_dist_path")
     if web_dist_path and Path(web_dist_path).exists():
@@ -685,10 +686,28 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         }
 
     @app.post("/auth/login")
-    def login(payload: LoginRequest):
-        user = get_user(payload.username)
-        if not verify_password(payload.password, user.get("password_hash")):
+    def login(payload: LoginRequest, request: Request):
+        # Simple in-memory brute-force throttle: cap failed attempts per client IP
+        # within a rolling window before locking out for the rest of it.
+        limit = int(cfg.get("login_max_attempts") or 10)
+        window = float(cfg.get("login_window_seconds") or 300)
+        ip = (request.client.host if request.client else "?") or "?"
+        now = time.monotonic()
+        attempts = app.state.login_attempts
+        recent = [t for t in attempts.get(ip, []) if now - t < window]
+        if len(recent) >= limit:
+            attempts[ip] = recent
+            raise HTTPException(status_code=429, detail="too many login attempts — try again later")
+        try:
+            user = get_user(payload.username)
+            ok = verify_password(payload.password, user.get("password_hash"))
+        except HTTPException:
+            ok = False
+        if not ok:
+            recent.append(now)
+            attempts[ip] = recent
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid username or password")
+        attempts.pop(ip, None)  # reset on success
         token = create_token(user["id"])
         return {"token": token, "user": public_user(user)}
 
