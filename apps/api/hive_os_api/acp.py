@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from .runners import augmented_path
@@ -21,6 +22,21 @@ logger = logging.getLogger("hive_os.acp")
 
 UpdateHandler = Callable[[dict[str, Any]], None]
 READ_LIMIT = 16 * 1024 * 1024
+
+
+def config_sig(hermes_home: str) -> tuple:
+    """Signature of the profile's tool config (MCP + skills). When it changes the
+    cached agent process is recycled so newly added MCP/skills load on the next run."""
+    if not hermes_home:
+        return ()
+    base = Path(hermes_home)
+    sig = []
+    for rel in ("config.yaml", "skills", ".skills_prompt_snapshot.json"):
+        try:
+            sig.append(round((base / rel).stat().st_mtime, 3))
+        except OSError:
+            sig.append(0.0)
+    return tuple(sig)
 
 
 class AcpError(Exception):
@@ -38,6 +54,7 @@ class AcpProcess:
         self._reader: asyncio.Task | None = None
         self._lock = asyncio.Lock()
         self._started = False
+        self.config_sig: tuple = ()
 
     async def start(self) -> None:
         if self._started:
@@ -55,6 +72,7 @@ class AcpProcess:
         )
         self._reader = asyncio.create_task(self._read_loop())
         await self._request("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
+        self.config_sig = config_sig(self.hermes_home)
         self._started = True
 
     async def _read_loop(self) -> None:
@@ -185,7 +203,13 @@ class AcpManager:
         async with self._lock:
             proc = self._procs.get(key)
             if proc and proc._started:
-                return proc
+                # Recycle if MCP/skill config changed since this process started,
+                # so newly added tools load on the next run (no manual restart).
+                if proc.config_sig == config_sig(hermes_home):
+                    return proc
+                logger.info("acp: tool config changed, recycling process for %s", hermes_home)
+                await proc.stop()
+                self._procs.pop(key, None)
             proc = AcpProcess(hermes_home, cwd)
             await proc.start()
             self._procs[key] = proc
