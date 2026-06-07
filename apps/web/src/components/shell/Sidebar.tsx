@@ -33,6 +33,7 @@ export function Sidebar(props: {
   profiles: Profile[]
   projects: Project[]
   sessions: ChatSession[]
+  seen: Record<number, string>
   user: User
 }) {
   return <div className="sidebar-inner">
@@ -55,7 +56,10 @@ type GroupProps = {
   sessions: ChatSession[]; activeSession: ChatSession | null; onClose: () => void
   onSelectSession: (s: ChatSession) => void; onRenameSession: (id: number, t: string) => void
   onDeleteSession: (id: number) => void; onOpenTask: (taskId: number) => void
+  seen: Record<number, string>
 }
+
+const isUnread = (s: ChatSession, seen: Record<number, string>) => (seen[s.id] ?? '') < (s.updated_at ?? '')
 
 function usePersistedToggle(key: string, fallback: boolean) {
   const [open, setOpen] = React.useState(() => { const v = localStorage.getItem(key); return v == null ? fallback : v === '1' })
@@ -73,7 +77,7 @@ function SessionGroups(props: GroupProps) {
     {chats.length > 0 && <section className="nav-group">
       <button className="group-toggle" onClick={toggleChats}><span><span className={`chevron ${openChats ? 'open' : ''}`}>▸</span> Chats</span><span>{chats.length}</span></button>
       {openChats && chats.slice(0, 20).map(session => <div className={`project-row session-row ${props.activeSession?.id === session.id ? 'active' : ''}`} key={session.id} title={`${session.project_slug || 'no project'} · ${session.profile_slug || 'profile'}`}>
-        <button className="row-main" onClick={() => { props.onSelectSession(session); props.onClose() }}><span className="status-dot" /><strong>{session.title}</strong></button>
+        <button className="row-main" onClick={() => { props.onSelectSession(session); props.onClose() }}><span className={`status-dot ${session.id !== props.activeSession?.id && isUnread(session, props.seen) ? 'unread' : ''}`} /><strong>{session.title}</strong></button>
         <span className="row-actions">
           <button className="row-action" title="Rename" aria-label="Rename session" onClick={e => { e.stopPropagation(); const t = window.prompt('Rename session', session.title); if (t && t.trim()) props.onRenameSession(session.id, t.trim()) }}><IconPencil size={15} /></button>
           <button className="row-action danger" title="Delete" aria-label="Delete session" onClick={e => { e.stopPropagation(); if (window.confirm(`Delete session "${session.title}"?`)) props.onDeleteSession(session.id) }}><IconTrash size={15} /></button>
@@ -83,7 +87,7 @@ function SessionGroups(props: GroupProps) {
     {taskThreads.length > 0 && <section className="nav-group">
       <button className="group-toggle" onClick={toggleTasks}><span><span className={`chevron ${openTasks ? 'open' : ''}`}>▸</span> Tasks</span><span>{taskThreads.length}</span></button>
       {openTasks && taskThreads.slice(0, 30).map(session => <div className="project-row session-row" key={session.id} title="Open task">
-        <button className="row-main" onClick={() => { props.onOpenTask(session.task_id as number); props.onClose() }}><span className="status-dot" /><strong>{session.task_title || session.title}</strong></button>
+        <button className="row-main" onClick={() => { props.onOpenTask(session.task_id as number); props.onClose() }}><span className={`status-dot ${isUnread(session, props.seen) ? 'unread' : ''}`} /><strong>{session.task_title || session.title}</strong></button>
       </div>)}
     </section>}
   </>

@@ -31,6 +31,7 @@ export function AppShell(props: {
   onSelectSession: (session: ChatSession) => void
   onOpenTask: (taskId: number) => void
   onOpenFile: (slug: string, path: string) => void
+  seen: Record<number, string>
   onSelectView: (view: View) => void
   profiles: Profile[]
   projects: Project[]

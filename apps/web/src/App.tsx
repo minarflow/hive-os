@@ -27,6 +27,13 @@ export function App() {
   const [view, setView] = React.useState<View>('chat')
   const [pendingTask, setPendingTask] = React.useState<number | null>(null)
   const [pendingFile, setPendingFile] = React.useState<{ slug: string; path: string } | null>(null)
+  // Unread/activity dots: a session is "unread" when its updated_at is newer
+  // than the last time you opened it. Persisted so it survives reloads.
+  const [seen, setSeen] = React.useState<Record<number, string>>(() => { try { return JSON.parse(localStorage.getItem('hive.seen') || '{}') } catch { return {} } })
+  const baselined = React.useRef(false)
+  const markSeen = React.useCallback((id: number, updated?: string) => {
+    setSeen(prev => { const u = updated || prev[id] || ''; if (prev[id] === u) return prev; const n = { ...prev, [id]: u }; localStorage.setItem('hive.seen', JSON.stringify(n)); return n })
+  }, [])
   const [profiles, setProfiles] = React.useState<Profile[]>([])
   const [projects, setProjects] = React.useState<Project[]>([])
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
@@ -51,6 +58,27 @@ export function App() {
     setActiveProfile(current => current && profileBody.profiles.some(p => p.id === current.id) ? current : profileBody.profiles.find(p => p.is_default) || profileBody.profiles[0] || null)
     setActiveProject(current => current && projectBody.projects.some(p => p.slug === current.slug) ? current : projectBody.projects[0] || null)
     setActiveSession(current => current && sessionBody.sessions.some(s => s.id === current.id) ? current : sessionBody.sessions[0] || null)
+  }, [token])
+
+  // On first load, treat existing sessions as already seen (only NEW activity dots).
+  React.useEffect(() => {
+    if (baselined.current || sessions.length === 0) return
+    baselined.current = true
+    setSeen(prev => { const n = { ...prev }; let ch = false; for (const s of sessions) if (!(s.id in n)) { n[s.id] = s.updated_at || ''; ch = true } if (ch) localStorage.setItem('hive.seen', JSON.stringify(n)); return n })
+  }, [sessions])
+  // The chat you're currently viewing is always considered seen. (Task threads
+  // are marked seen via onOpenTask, not by being the default activeSession.)
+  React.useEffect(() => {
+    if (!activeSession || activeSession.task_id || view !== 'chat') return
+    const row = sessions.find(s => s.id === activeSession.id)
+    if (row) markSeen(row.id, row.updated_at)
+  }, [sessions, activeSession, view, markSeen])
+  // Refresh the sessions list when a run finishes so its dot lights up.
+  React.useEffect(() => {
+    if (!token) return
+    const h = () => { void listSessions(token).then(r => setSessions(r.sessions)).catch(() => {}) }
+    window.addEventListener('hive:files-changed', h)
+    return () => window.removeEventListener('hive:files-changed', h)
   }, [token])
 
   React.useEffect(() => {
@@ -128,8 +156,9 @@ export function App() {
       onRenameSession={(id, title) => void handleRenameSession(id, title)}
       onDeleteSession={id => void handleDeleteSession(id)}
       onSelectProject={project => setActiveProject(project)}
-      onSelectSession={session => { setActiveSession(session); setView('chat') }}
-      onOpenTask={taskId => { setPendingTask(taskId); setView('tasks') }}
+      onSelectSession={session => { setActiveSession(session); markSeen(session.id, session.updated_at); setView('chat') }}
+      onOpenTask={taskId => { setPendingTask(taskId); setView('tasks'); const s = sessions.find(x => x.task_id === taskId); if (s) markSeen(s.id, s.updated_at) }}
+      seen={seen}
       onOpenFile={(slug, path) => { setPendingFile({ slug, path }); setView('artifacts') }}
       onSelectView={setView}
       profiles={profiles}
