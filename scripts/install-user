@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+# One-command, no-sudo install: build the app, then run it as an always-on
+# systemd *user* service (auto-starts on login/boot, restarts on crash) with a
+# daily database backup timer. Re-runnable (idempotent).
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+CONFIG_FILE="${HIVEOS_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/hive-os/hive-os.env}"
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+
+command -v uv  >/dev/null 2>&1 || { echo "missing: uv"  >&2; exit 1; }
+command -v npm >/dev/null 2>&1 || { echo "missing: npm" >&2; exit 1; }
+
+echo "==> Building backend deps"
+( cd "$ROOT/apps/api" && uv sync >/dev/null )
+echo "==> Building web PWA"
+( cd "$ROOT/apps/web" && npm install >/dev/null && npm run build >/dev/null )
+
+echo "==> Writing config"
+bash "$ROOT/scripts/hive-os" init-config
+
+# Bake node's bin dir into the service PATH so the spawned `hermes` agent (a node
+# tool) resolves its runtime even under systemd's minimal environment.
+NODE_BIN="$(dirname "$(command -v node 2>/dev/null || echo /usr/bin/node)")"
+SVC_PATH="$NODE_BIN:$HOME/.local/bin:/home/linuxbrew/.linuxbrew/bin:/usr/local/bin:/usr/bin:/bin"
+
+echo "==> Installing systemd user units -> $UNIT_DIR"
+mkdir -p "$UNIT_DIR"
+
+cat > "$UNIT_DIR/hive-os.service" <<EOF
+[Unit]
+Description=Hive OS Team Workspace
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$ROOT
+Environment=PATH=$SVC_PATH
+ExecStart=$ROOT/scripts/hive-os serve
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target
+EOF
+
+cat > "$UNIT_DIR/hive-os-backup.service" <<EOF
+[Unit]
+Description=Hive OS database backup
+
+[Service]
+Type=oneshot
+EnvironmentFile=-$CONFIG_FILE
+ExecStart=$ROOT/scripts/backup
+EOF
+
+cat > "$UNIT_DIR/hive-os-backup.timer" <<EOF
+[Unit]
+Description=Daily Hive OS backup
+
+[Timer]
+OnCalendar=*-*-* 03:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+echo "==> Enabling services"
+systemctl --user daemon-reload
+systemctl --user enable --now hive-os.service
+systemctl --user enable --now hive-os-backup.timer
+# Keep the service running even when you're not logged in (best-effort).
+loginctl enable-linger "$USER" >/dev/null 2>&1 || echo "   (note: enable-linger skipped — service runs while you're logged in)"
+
+PORT="$( ( set +u; source "$CONFIG_FILE" 2>/dev/null; echo "${HIVEOS_PORT:-8765}" ) )"
+cat <<EOF
+
+✅ Hive OS is installed and running as a service.
+
+   Open:        http://127.0.0.1:$PORT      (first launch asks you to create the admin account)
+   Status:      systemctl --user status hive-os
+   Logs:        journalctl --user -u hive-os -f
+   Restart:     systemctl --user restart hive-os
+   Stop:        systemctl --user stop hive-os
+
+   Phone / other devices over Tailscale (run once, persists):
+     tailscale serve --bg https / http://127.0.0.1:$PORT
+   then open your https MagicDNS URL and install the PWA.
+
+   Backups run daily at 03:00 -> ~/.local/share/hive-os/backups
+EOF

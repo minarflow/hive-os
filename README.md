@@ -60,19 +60,24 @@ required.
 bash scripts/build      # sync deps, run API tests, build the PWA
 ```
 
-## Install
+## Install (always-on, no sudo)
+
+One command builds the app and runs it as a systemd **user** service that
+auto-starts on login/boot, restarts on crash, and backs up the DB daily:
+
+```bash
+bash scripts/install-user
+```
+
+Then open `http://127.0.0.1:8765` and create your admin account. Manage it with
+`systemctl --user {status,restart,stop} hive-os`.
+
+Other options — system-wide with sudo, or manual control:
 
 ```bash
 sudo bash scripts/install-local      # add --dry-run to preview
-hive-os doctor
-hive-os serve                        # http://127.0.0.1:8765
-```
-
-Or user-local, no sudo:
-
-```bash
-bash scripts/hive-os init-config && bash scripts/hive-os build
-bash scripts/hive-os doctor && bash scripts/hive-os serve
+# or run it yourself:
+bash scripts/hive-os init-config && bash scripts/hive-os build && bash scripts/hive-os serve
 ```
 
 On first launch Hive OS asks for an admin username/password and a first agent
