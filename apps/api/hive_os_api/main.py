@@ -6,13 +6,14 @@ import logging
 import os
 import sqlite3
 import subprocess
+import httpx
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -21,6 +22,7 @@ from .commands import command_catalog, execute_command
 from .db import connect, init_db
 from .runners import augmented_path, detect_runners
 from .acp import AcpManager
+from .apprunner import AppManager
 from .profile_seed import seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
@@ -87,6 +89,11 @@ class InviteRedeemRequest(BaseModel):
     password: str = Field(min_length=8)
     profile_name: str = "Default"
     profile_slug: str = "default"
+
+
+class AppStartRequest(BaseModel):
+    command: str = Field(min_length=1)
+    port: int = 5180
 
 
 class TaskCreateRequest(BaseModel):
@@ -515,6 +522,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         yield
         await worker.stop()
         await app.state.acp_manager.shutdown()
+        await app.state.app_manager.shutdown()
 
     app = FastAPI(title="Hive OS API", version="0.2.0", lifespan=lifespan)
     app.state.config = cfg
@@ -524,6 +532,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.worker_db = connect(cfg["database_path"])  # dedicated connection for the async run worker
     app.state.worker = RunWorker(app)
     app.state.acp_manager = AcpManager()
+    app.state.app_manager = AppManager()
     app.state.login_attempts = {}  # ip -> [monotonic timestamps] for login throttling
     app.state.hub = EventHub()
 
@@ -1215,6 +1224,46 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         rel = f"uploads/{target.name}"
         _audit_fs(user, "file.upload", slug, rel)
         return {"path": rel, "name": target.name}
+
+    # ── Run & preview a project app (managed dev server + proxy) ──────
+    @app.post("/api/projects/{slug}/app/start")
+    async def app_start(slug: str, payload: AppStartRequest, user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        await app.state.app_manager.start(slug, str(root), payload.command, int(payload.port or 5180))
+        _audit_fs(user, "app.start", slug, payload.command)
+        return {"ok": True}
+
+    @app.post("/api/projects/{slug}/app/stop")
+    async def app_stop(slug: str, user: dict[str, Any] = Depends(current_user)):
+        _project_root(slug, user)
+        await app.state.app_manager.stop(slug)
+        return {"ok": True}
+
+    @app.get("/api/projects/{slug}/app/status")
+    def app_status(slug: str, user: dict[str, Any] = Depends(current_user)):
+        _project_root(slug, user)
+        return app.state.app_manager.status(slug)
+
+    _HOP = {"connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length", "host"}
+
+    @app.api_route("/api/appview/{token}/{slug}/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "PATCH"])
+    async def app_view(token: str, slug: str, path: str, request: Request):
+        # Proxy to the project's running app. Token in path so the iframe + its
+        # relative assets authenticate (same pattern as file preview).
+        user = user_from_token_query(token)
+        _project_root(slug, user)  # access check
+        port = app.state.app_manager.port(slug)
+        if not port:
+            raise HTTPException(status_code=503, detail="app not running")
+        url = f"http://127.0.0.1:{port}/{path}"
+        fwd = {k: v for k, v in request.headers.items() if k.lower() not in _HOP}
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=False) as client:
+                up = await client.request(request.method, url, params=request.query_params, content=await request.body(), headers=fwd)
+        except httpx.RequestError:
+            raise HTTPException(status_code=502, detail="app not reachable yet") from None
+        out = {k: v for k, v in up.headers.items() if k.lower() not in _HOP}
+        return Response(content=up.content, status_code=up.status_code, headers=out, media_type=up.headers.get("content-type"))
 
     @app.post("/api/projects/{slug}/fs/mkdir")
     def project_mkdir(slug: str, payload: FsPathRequest, user: dict[str, Any] = Depends(current_user)):

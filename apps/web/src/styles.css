@@ -596,6 +596,20 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .file-preview.img img { max-width: 100%; max-height: 100%; }
 .file-preview-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: #fff; }
 .file-preview.md-doc { padding: 18px 22px; }
+.files-run { margin-left: auto; }
+.modal-card.app-runner { max-width: 1100px; width: 92vw; height: 85vh; display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.app-runner-head { display: flex; align-items: center; justify-content: space-between; }
+.app-runner-head .icon-button { width: 30px; height: 30px; }
+.app-runner-bar { display: flex; gap: 8px; align-items: center; }
+.app-runner-bar .ui-select { min-width: 0; }
+.app-runner-bar .ui-select:first-child { flex: 1; }
+.app-runner-bar .app-port { width: 90px; flex: none; }
+.app-runner-body { flex: 1; min-height: 0; border: 1px solid var(--ui-stroke-secondary); border-radius: 12px; overflow: hidden; background: #fff; }
+.app-frame { width: 100%; height: 100%; border: 0; background: #fff; }
+.app-runner-log { padding: 14px; height: 100%; overflow: auto; }
+.app-log { background: var(--ui-code-bg); color: var(--ui-code-fg); border-radius: 10px; padding: 10px; font-family: var(--font-mono); font-size: .78rem; white-space: pre-wrap; }
+.app-runner-tip { font-size: .74rem; }
+.app-runner-tip code { background: var(--ui-row-hover-background); padding: 1px 5px; border-radius: 5px; }
 /* Mobile: master-detail — show the tree, or the open file full-screen (not both). */
 @media (max-width: 767px) {
   .files-body { display: flex; flex-direction: column; }

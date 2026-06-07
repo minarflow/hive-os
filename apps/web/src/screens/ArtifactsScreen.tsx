@@ -6,6 +6,7 @@ import { projectFs } from '../api/fsAdapter'
 import { fetchRawBlob } from '../api/files'
 import { MessageContent } from '../components/chat/MessageContent'
 import { Dropdown } from '../components/ui/Dropdown'
+import { AppRunner } from '../components/files/AppRunner'
 
 const clean = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
 const IMG = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i
@@ -53,6 +54,7 @@ export function ArtifactsScreen({ token, projects, activeProject, pendingFile, o
   const [slug, setSlug] = React.useState(activeProject?.slug || projects[0]?.slug || '')
   const [path, setPath] = React.useState<string | null>(null)
   const [treeW, setTreeW] = React.useState(() => Number(localStorage.getItem('hive.filesTreeW')) || 260)
+  const [runner, setRunner] = React.useState(false)
   const project = projects.find(p => p.slug === slug) || null
   const fs = React.useMemo(() => project ? projectFs(token, project.slug) : null, [token, project?.slug])
 
@@ -78,7 +80,9 @@ export function ArtifactsScreen({ token, projects, activeProject, pendingFile, o
     <div className="files-head">
       <Dropdown value={slug} onChange={setSlug} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
       <span className="muted files-hint">Browse, edit &amp; preview project files</span>
+      {project && <button className="ghost-button files-run" onClick={() => setRunner(true)}>▶ Run app</button>}
     </div>
+    {runner && project && <AppRunner token={token} slug={project.slug} onClose={() => setRunner(false)} />}
     <div className={`files-body ${path ? 'has-file' : ''}`} style={{ gridTemplateColumns: `${treeW}px 6px minmax(0, 1fr)` }}>
       {fs && <WorkspaceTree fs={fs} title="Files" className="files-tree" onOpenFile={setPath} activePath={path} />}
       <div className="files-resize" onMouseDown={startResize} role="separator" aria-label="Resize file tree" />

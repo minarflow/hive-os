@@ -29,6 +29,17 @@ export async function uploadFile(token: string, slug: string, file: File): Promi
 export const fileUrl = (token: string, slug: string, path: string) =>
   `/api/preview/${encodeURIComponent(token)}/${encodeURIComponent(slug)}/${path.split('/').map(encodeURIComponent).join('/')}`
 
+// Run & preview a project app (managed dev server).
+export type AppStatus = { running: boolean; port?: number; command?: string; log?: string[]; exited?: boolean }
+export const appStart = (token: string, slug: string, command: string, port: number) =>
+  api<{ ok: boolean }>(`/api/projects/${slug}/app/start`, token, { method: 'POST', body: JSON.stringify({ command, port }) })
+export const appStop = (token: string, slug: string) =>
+  api<{ ok: boolean }>(`/api/projects/${slug}/app/stop`, token, { method: 'POST' })
+export const appStatus = (token: string, slug: string) =>
+  api<AppStatus>(`/api/projects/${slug}/app/status`, token)
+export const appViewUrl = (token: string, slug: string) =>
+  `/api/appview/${encodeURIComponent(token)}/${encodeURIComponent(slug)}/`
+
 export const readFile = (token: string, slug: string, path: string) =>
   api<{ path: string; content: string }>(`/api/projects/${slug}/file?path=${q(path)}`, token)
 
