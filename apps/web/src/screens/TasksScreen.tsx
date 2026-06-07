@@ -11,7 +11,7 @@ const COLUMNS: { key: TaskStatus; label: string }[] = [
 ]
 const clean = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
 
-function TaskDetail({ token, task, onBack, onStatus, onDelete }: { token: string; task: Task; onBack: () => void; onStatus: (t: Task, s: TaskStatus) => void; onDelete: (t: Task) => void }) {
+function TaskDetail({ token, task, onBack, onStatus, onDelete, onTaskChanged }: { token: string; task: Task; onBack: () => void; onStatus: (t: Task, s: TaskStatus) => void; onDelete: (t: Task) => void; onTaskChanged: () => void }) {
   return <div className="task-detail">
     <div className="task-detail-head">
       <button className="ghost-button" onClick={onBack}>← Board</button>
@@ -20,7 +20,7 @@ function TaskDetail({ token, task, onBack, onStatus, onDelete }: { token: string
       <button className="ghost-button danger" onClick={() => onDelete(task)}>Delete</button>
     </div>
     {task.description && <p className="task-desc">{task.description}</p>}
-    {task.session_id ? <div className="task-thread"><TaskChat token={token} task={task} /></div> : <p className="muted" style={{ padding: 16 }}>No thread linked.</p>}
+    {task.session_id ? <div className="task-thread"><TaskChat token={token} task={task} onTaskChanged={onTaskChanged} /></div> : <p className="muted" style={{ padding: 16 }}>No thread linked.</p>}
   </div>
 }
 
@@ -61,10 +61,14 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
     if (!window.confirm(`Delete task "${t.title}"? Its thread will be removed too.`)) return
     try { await deleteTask(token, t.id); setSelected(null); await reload() } catch (e) { setError(String(e)) }
   }
+  // After an agent run finishes, re-fetch the task so its status (e.g. → Review) updates live.
+  async function refreshTask(id: number) {
+    try { const u = await getTask(token, id); setSelected(cur => cur?.id === id ? u : cur); setTasks(cur => cur.map(x => x.id === id ? u : x)) } catch { /* ignore */ }
+  }
 
   if (projects.length === 0) return <section className="placeholder-view"><div className="assistant-bubble compact"><h1>Tasks</h1><p>No projects yet.</p></div></section>
 
-  if (selected) return <section className="tasks-view"><TaskDetail token={token} task={selected} onBack={() => setSelected(null)} onStatus={setStatus} onDelete={remove} /></section>
+  if (selected) return <section className="tasks-view"><TaskDetail token={token} task={selected} onBack={() => setSelected(null)} onStatus={setStatus} onDelete={remove} onTaskChanged={() => void refreshTask(selected.id)} /></section>
 
   return <section className="tasks-view">
     <div className="tasks-head">

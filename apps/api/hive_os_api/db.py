@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS runs (
   pid INTEGER,
   started_at TEXT,
   finished_at TEXT,
+  heartbeat_at TEXT,
   error TEXT,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -176,6 +177,7 @@ def migrate_existing(conn: sqlite3.Connection) -> None:
     _add_column(conn, "sessions", "visibility", "visibility TEXT NOT NULL DEFAULT 'private'")
     _add_column(conn, "sessions", "acp_session_id", "acp_session_id TEXT")
     _add_column(conn, "sessions", "task_id", "task_id INTEGER")
+    _add_column(conn, "runs", "heartbeat_at", "heartbeat_at TEXT")
 
 
 def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = None, hermes_home_factory: Any | None = None, source_hermes_home: str | None = None) -> None:

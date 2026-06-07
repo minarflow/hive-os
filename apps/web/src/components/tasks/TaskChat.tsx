@@ -8,7 +8,7 @@ import { Composer } from '../chat/Composer'
 
 // A focused agent thread bound to one task's session. Reuses the same
 // streaming + tool-card rendering as the main chat.
-export function TaskChat({ token, task }: { token: string; task: Task }) {
+export function TaskChat({ token, task, onTaskChanged }: { token: string; task: Task; onTaskChanged?: () => void }) {
   const sessionId = task.session_id as number
   const [messages, setMessages] = React.useState<ChatMessage[]>([])
   const [events, setEvents] = React.useState<RunEvent[]>([])
@@ -36,9 +36,9 @@ export function TaskChat({ token, task }: { token: string; task: Task }) {
     if (event.type === 'message.delta') { if (timerRef.current == null) timerRef.current = window.setTimeout(flush, 33); return }
     if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
     flush()
-    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void load(); window.dispatchEvent(new CustomEvent('hive:files-changed')) }
+    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void load(); window.dispatchEvent(new CustomEvent('hive:files-changed')); onTaskChanged?.() }
     else if (event.type === 'message.complete') void load()
-  }, [flush, load])
+  }, [flush, load, onTaskChanged])
 
   React.useEffect(() => () => { if (timerRef.current != null) clearTimeout(timerRef.current) }, [])
   const { connected } = useEventStream(token, sessionId, onEvent)
@@ -53,6 +53,7 @@ export function TaskChat({ token, task }: { token: string; task: Task }) {
       const run = await createRun(token, sessionId, { message: prompt, profile_id: null, model: null })
       setBusyRun(run.run_id)
       setEvents((await listEvents(token, sessionId)).events)
+      onTaskChanged?.()  // run create flips task → 'doing' server-side; reflect it now
     } catch (e) { setError(String(e)) }
   }
 

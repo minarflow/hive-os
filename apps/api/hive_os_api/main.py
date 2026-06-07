@@ -6,6 +6,7 @@ import logging
 import os
 import sqlite3
 import subprocess
+import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, AsyncIterator
@@ -209,9 +210,17 @@ class RunWorker:
                 proc.terminate()
 
     async def loop(self) -> None:
-        poll = max(0.05, int(self.app.state.config.get("run_worker_poll_interval_ms", 250)) / 1000)
+        cfg = self.app.state.config
+        poll = max(0.05, int(cfg.get("run_worker_poll_interval_ms", 250)) / 1000)
+        stale_seconds = int(cfg.get("run_stale_seconds") or 60)
+        reap_every = max(5.0, stale_seconds / 2)
+        last_reap = 0.0
         while not self.stop_event.is_set():
             try:
+                now = time.monotonic()
+                if now - last_reap >= reap_every:
+                    last_reap = now
+                    self.reap_stale_runs(stale_seconds)
                 run = self.claim_run()
                 if run:
                     await self.execute_run(run)
@@ -226,12 +235,80 @@ class RunWorker:
     def claim_run(self) -> dict[str, Any] | None:
         db = self.app.state.worker_db
         with self.app.state.db_lock:
-            row = db.execute("SELECT * FROM runs WHERE status = 'queued' ORDER BY id LIMIT 1").fetchone()
+            # Per-session serialization: never start a run for a session that
+            # already has one in flight, so two agents can't talk over each
+            # other on the same chat/task (avoids the "empty reply" collision).
+            row = db.execute(
+                """
+                SELECT * FROM runs WHERE status = 'queued'
+                  AND session_id NOT IN (SELECT session_id FROM runs WHERE status = 'running')
+                ORDER BY id LIMIT 1
+                """
+            ).fetchone()
             if not row:
                 return None
-            db.execute("UPDATE runs SET status = 'running', started_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'queued'", (row["id"],))
+            db.execute(
+                "UPDATE runs SET status = 'running', started_at = CURRENT_TIMESTAMP, heartbeat_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'queued'",
+                (row["id"],),
+            )
             self.add_event(row["id"], row["session_id"], row["project_id"], "run.started", {"runner": row["runner_id"]})
             return dict(db.execute("SELECT * FROM runs WHERE id = ?", (row["id"],)).fetchone())
+
+    def _reconstruct_text(self, run_id: int) -> str:
+        """Rebuild the agent's message from streamed deltas already in the DB —
+        so output is never lost even if a run is interrupted before its final save."""
+        db = self.app.state.worker_db
+        rows = db.execute(
+            "SELECT payload FROM events WHERE run_id = ? AND type = 'message.delta' ORDER BY seq",
+            (run_id,),
+        ).fetchall()
+        parts = []
+        for r in rows:
+            try:
+                parts.append(json.loads(r["payload"]).get("text", ""))
+            except Exception:
+                pass
+        return "".join(parts).strip()
+
+    def _fail_interrupted(self, run_id: int, session_id: int, project_id: int | None, reason: str) -> None:
+        """Terminally close a run that lost its in-memory state (shutdown / crash /
+        stale heartbeat). Salvages any streamed output as a saved message."""
+        db = self.app.state.worker_db
+        with self.app.state.db_lock:
+            cur = db.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()
+            if not cur or cur["status"] != "running":
+                return  # already finalized by someone else
+            salvaged = self._reconstruct_text(run_id)
+            if salvaged:
+                db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, salvaged))
+            self.add_event(run_id, session_id, project_id, "run.failed", {"error": reason})
+            db.execute(
+                "UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'running'",
+                (reason, run_id),
+            )
+
+    def reap_stale_runs(self, stale_seconds: int) -> None:
+        """Mark runs whose worker stopped checking in (crash without a clean
+        restart, wedged event loop) as failed — the watchdog for hangs."""
+        db = self.app.state.worker_db
+        with self.app.state.db_lock:
+            stale = db.execute(
+                f"SELECT id, session_id, project_id FROM runs WHERE status = 'running' "
+                f"AND (heartbeat_at IS NULL OR heartbeat_at < datetime('now', '-{int(stale_seconds)} seconds'))"
+            ).fetchall()
+            rows = [dict(r) for r in stale]
+        for r in rows:
+            self._fail_interrupted(r["id"], r["session_id"], r["project_id"], "Run stalled (no heartbeat)")
+
+    async def _heartbeat(self, run_id: int, interval: float) -> None:
+        db = self.app.state.worker_db
+        try:
+            while True:
+                await asyncio.sleep(interval)
+                with self.app.state.db_lock:
+                    db.execute("UPDATE runs SET heartbeat_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
+        except asyncio.CancelledError:
+            raise
 
     def add_event(self, run_id: int, session_id: int, project_id: int | None, event_type: str, payload: dict[str, Any]) -> None:
         db = self.app.state.worker_db
@@ -257,6 +334,7 @@ class RunWorker:
         Path(cwd).mkdir(parents=True, exist_ok=True)
 
         chunks: list[str] = []
+        hb_task: asyncio.Task | None = None
 
         def on_update(u: dict[str, Any]) -> None:
             kind = u.get("sessionUpdate")
@@ -292,6 +370,7 @@ class RunWorker:
                 with self.app.state.db_lock:
                     db.execute("UPDATE sessions SET acp_session_id = ? WHERE id = ?", (acp_sid, session_id))
             self.active_runs[run_id] = (proc, acp_sid)
+            hb_task = asyncio.create_task(self._heartbeat(run_id, float(cfg.get("run_heartbeat_seconds") or 10)))
             timeout = int(cfg.get("run_timeout_seconds") or 600)
             stop_reason = await proc.prompt(acp_sid, run["prompt"], on_update, timeout=timeout)
 
@@ -308,8 +387,16 @@ class RunWorker:
                 trow = db.execute("SELECT task_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
                 if trow and trow["task_id"]:
                     db.execute("UPDATE tasks SET status = 'review', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'done'", (trow["task_id"],))
+        except asyncio.CancelledError:
+            # Graceful shutdown: close the run cleanly (salvaging streamed text)
+            # instead of leaving it orphaned in 'running'.
+            self._fail_interrupted(run_id, session_id, project_id, "Interrupted by server shutdown")
+            raise
         except asyncio.TimeoutError:
             with self.app.state.db_lock:
+                salvaged = self._reconstruct_text(run_id)
+                if salvaged:
+                    db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, salvaged))
                 self.add_event(run_id, session_id, project_id, "run.failed", {"error": "Hermes runner timed out"})
                 db.execute("UPDATE runs SET status = 'failed', error = 'Hermes runner timed out', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
         except Exception as exc:
@@ -320,6 +407,10 @@ class RunWorker:
                 self.add_event(run_id, session_id, project_id, "run.failed", {"error": detail})
                 db.execute("UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ?", (detail, run_id))
         finally:
+            if hb_task:
+                hb_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await hb_task
             self.active_runs.pop(run_id, None)
 
     def cancel(self, run_id: int) -> None:
@@ -352,6 +443,18 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             except Exception:
                 logging.getLogger("hive_os.provisioning").exception("startup backfill failed")
         worker = app.state.worker
+        # Reclaim runs orphaned by a previous shutdown: a run left in 'running'
+        # had in-memory ACP state that's now gone, so it can never complete.
+        # Mark it failed (and emit a terminal event) instead of leaving it stuck.
+        try:
+            with app.state.db_lock:
+                orphaned = [dict(r) for r in app.state.worker_db.execute(
+                    "SELECT id, session_id, project_id FROM runs WHERE status = 'running'"
+                ).fetchall()]
+            for r in orphaned:
+                worker._fail_interrupted(r["id"], r["session_id"], r["project_id"], "Interrupted by server restart")
+        except Exception:
+            logging.getLogger("hive_os.worker").exception("orphaned run cleanup failed")
         if cfg.get("start_worker", True):
             worker.start()
         yield
