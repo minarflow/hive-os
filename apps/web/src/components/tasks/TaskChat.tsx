@@ -37,7 +37,7 @@ export function TaskChat({ token, task, onTaskChanged }: { token: string; task: 
     if (event.type === 'message.delta') { if (timerRef.current == null) timerRef.current = window.setTimeout(flush, 33); return }
     if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
     flush()
-    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { void load().then(() => setBusyRun(null)); window.dispatchEvent(new CustomEvent('hive:files-changed')); onTaskChanged?.(); if (event.type === 'run.completed') notify('Task selesai', `“${task.title}” siap di-review.`) }
+    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { void load().then(() => setBusyRun(null)); window.dispatchEvent(new CustomEvent('hive:files-changed')); onTaskChanged?.(); if (event.type === 'run.completed') notify('Task complete', `“${task.title}” is ready for review.`) }
   }, [flush, load, onTaskChanged, task.title])
 
   React.useEffect(() => () => { if (timerRef.current != null) clearTimeout(timerRef.current) }, [])
@@ -59,16 +59,16 @@ export function TaskChat({ token, task, onTaskChanged }: { token: string; task: 
 
   function kickoff() {
     const brief = `Task: ${task.title}` + (task.description ? `\n\n${task.description}` : '') +
-      `\n\nKerjakan task ini sampai selesai. Simpan semua hasil/deliverable (file, dokumen, dsb) ke folder \`artifacts/\` di project ini. ` +
-      `Verifikasi hasilnya benar-benar jalan/benar sebelum lapor selesai. Setelah selesai, balas singkat apa yang dibuat dan cara mengeceknya.`
+      `\n\nComplete this task. Save all results/deliverables (files, documents, etc.) to the \`artifacts/\` folder in this project. ` +
+      `Verify the result actually works/is correct before reporting done. When finished, reply briefly with what you made and how to check it.`
     void submit(brief)
   }
 
   return <div className="task-chat">
     <ChatThread messages={messages} events={events} pendingRunId={busyRun} token={token} slug={task.project_slug || undefined} />
     {messages.length === 0 && !busyRun && <div className="task-kickoff">
-      <div><strong>Belum dikerjakan.</strong><span className="muted"> Mulai agen dengan brief task ini, atau ketik instruksi sendiri.</span></div>
-      <button className="primary-button" onClick={kickoff}>▶ Kerjakan task ini</button>
+      <div><strong>Not started yet.</strong><span className="muted"> Start the agent with this task brief, or type your own instructions.</span></div>
+      <button className="primary-button" onClick={kickoff}>▶ Run this task</button>
     </div>}
     {error && <div className="error-bar">{error}</div>}
     <div className="chat-dock"><div className="chat-controls"><span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(token, busyRun)}>Stop</button>}</div><Composer disabled={false} token={token} slug={task.project_slug || undefined} onSubmit={submit} /></div>

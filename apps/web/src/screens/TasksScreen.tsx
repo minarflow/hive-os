@@ -20,6 +20,14 @@ function TaskDetail({ token, task, onBack, onStatus, onDelete, onTaskChanged }: 
       <div className="seg sm task-status-seg">{COLUMNS.map(c => <button key={c.key} className={task.status === c.key ? 'active' : ''} onClick={() => onStatus(task, c.key)}>{c.label}</button>)}</div>
       <button className="ghost-button danger" onClick={() => onDelete(task)}>Delete</button>
     </div>
+    {task.status === 'review' && <div className="task-review-bar">
+      <span>✅ Agent finished — review the result. Need changes? Just chat below.</span>
+      <button className="primary-button" onClick={() => onStatus(task, 'done')}>✓ Approve &amp; Done</button>
+    </div>}
+    {task.status === 'done' && <div className="task-review-bar done">
+      <span>✓ Approved &amp; done.</span>
+      <button className="ghost-button" onClick={() => onStatus(task, 'review')}>Reopen</button>
+    </div>}
     {task.description && <p className="task-desc">{task.description}</p>}
     {task.session_id ? <div className="task-thread"><TaskChat token={token} task={task} onTaskChanged={onTaskChanged} /></div> : <p className="muted" style={{ padding: 16 }}>No thread linked.</p>}
   </div>
