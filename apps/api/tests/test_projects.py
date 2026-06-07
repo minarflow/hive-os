@@ -74,6 +74,46 @@ def test_project_creator_sees_private_project_but_environment_admin_does_not_unt
     assert kuya_projects.json()["projects"] == []
 
 
+def _failing_ctl(tmp_path: Path) -> Path:
+    """A projectctl that always fails — stands in for hiveosctl needing root."""
+    script = tmp_path / "failing-ctl"
+    script.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit('must run as root/sudo')\n", encoding="utf-8")
+    script.chmod(0o755)
+    return script
+
+
+def test_project_create_works_without_privileged_helper(tmp_path: Path):
+    # Default manage_os_acl=False (single-user $HOME install): creating a project
+    # must NOT invoke the privileged hiveosctl helper. Point projectctl at a
+    # script that always fails to prove it is never called.
+    app = create_app({
+        "database_path": str(tmp_path / "h.db"),
+        "workspace_root": str(tmp_path / "rt"),
+        "projectctl_path": str(_failing_ctl(tmp_path)),
+        "seed_users": [{"username": "aris", "os_user": "aris", "role": "member"}],
+    })
+    api = TestClient(app)
+    res = api.post("/api/projects", json={"slug": "freshproj", "name": "Fresh"}, headers=login_headers(api, "aris"))
+    assert res.status_code == 201, res.text
+    assert (tmp_path / "rt" / "projects" / "freshproj").is_dir()  # dir scaffolded on disk
+
+
+def test_project_create_invokes_helper_when_manage_os_acl(tmp_path: Path):
+    # The /srv multi-user deployment opts in: the helper IS invoked, so a failing
+    # one surfaces as a 500 (proving the privileged path runs when enabled).
+    app = create_app({
+        "database_path": str(tmp_path / "h.db"),
+        "workspace_root": str(tmp_path / "rt"),
+        "projectctl_path": str(_failing_ctl(tmp_path)),
+        "manage_os_acl": True,
+        "seed_users": [{"username": "aris", "os_user": "aris", "role": "member"}],
+    })
+    api = TestClient(app)
+    res = api.post("/api/projects", json={"slug": "freshproj", "name": "Fresh"}, headers=login_headers(api, "aris"))
+    assert res.status_code == 500
+    assert "root" in res.text.lower()
+
+
 def test_non_member_cannot_read_project_detail(tmp_path: Path):
     api = client(tmp_path)
     aris = login_headers(api, "aris")

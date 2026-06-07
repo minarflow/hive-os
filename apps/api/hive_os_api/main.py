@@ -678,6 +678,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         raise HTTPException(status_code=404, detail="session not found")
 
     def run_projectctl(*args: str) -> None:
+        # Single-user $HOME deployments don't manage OS ownership/ACLs: the dir is
+        # scaffolded by scaffold_project_dir and access is enforced at the app layer
+        # (DB membership). Only the privileged /srv multi-user install opts in.
+        if not cfg.get("manage_os_acl"):
+            return
         base_command = cfg.get("projectctl_command") or [str(cfg["projectctl_path"])]
         command = [*base_command, "--root", str(cfg["workspace_root"]), *args]
         try:

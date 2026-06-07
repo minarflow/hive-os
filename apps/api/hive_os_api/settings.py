@@ -12,6 +12,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "workspace_root": "/srv/hive-os-demo",
     "projectctl_path": None,
     "projectctl_command": None,
+    # Run the privileged hiveosctl helper (OS ownership + POSIX ACLs) on project
+    # create/invite/remove. Only meaningful for the multi-OS-user /srv deployment
+    # running as root. Off by default: single-user $HOME installs just scaffold
+    # the project dir (no root, no ACLs needed).
+    "manage_os_acl": False,
     "hermes_profiles_root": None,
     "source_hermes_home": None,
     "run_worker_poll_interval_ms": 250,
@@ -38,6 +43,7 @@ def normalize_config(config: dict[str, Any] | None = None) -> dict[str, Any]:
     cfg["hermes_profiles_root"] = str(Path(cfg.get("hermes_profiles_root") or workspace_root / "hermes-profiles"))
     cfg["projectctl_path"] = str(Path(cfg.get("projectctl_path") or repo_root() / "infra/scripts/hiveosctl"))
     cfg["source_hermes_home"] = str(Path(cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")))
+    cfg["manage_os_acl"] = bool(cfg.get("manage_os_acl"))
     return cfg
 
 
