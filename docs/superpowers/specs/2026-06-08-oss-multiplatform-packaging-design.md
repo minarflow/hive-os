@@ -152,19 +152,14 @@ Surface this state via the existing `/api/runners/detect` so the UI can show
 - Each phase: capture command output / screenshots as evidence before claiming
   done.
 
-## 12. Open decision (needs Kuya)
+## 12. Decisions (resolved 2026-06-08)
 
-**Is Hermes distributable?** This gates how smooth Docker / "Hermes absent" can
-be:
-- If **yes** (public or fetchable at build): Docker can vendor Hermes via
-  `HERMES_SRC`; absent-Hermes installs can auto-install. Best UX.
-- If **no** (stays private): everything works as **bring-your-own-Hermes** —
-  detection + mount + clear guidance. Still fully usable for people who already
-  run Hermes; rougher for those who don't.
-
-Default assumption for this spec: **no / BYO**, with the vendoring hook left in
-place to flip on later. Also pending: GitHub account (minarflow?) + visibility
-(public now vs staged).
+- **Hermes stays private → bring-your-own.** Artifacts ship Hive only. Hosts who
+  already run Hermes get auto-detect + reuse; hosts without get clear install
+  guidance. The `HERMES_SRC` build-arg vendoring hook is implemented but left
+  **off**, so bundling can be flipped on later without rework.
+- **GitHub: `minarflow/hive-os`, public.** Push as the minarflow identity (matches
+  this repo's commit author) and make it public once Phase 1 is verified.
 
 ## 13. Deliverables
 
