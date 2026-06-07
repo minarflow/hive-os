@@ -487,6 +487,14 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .tool-btn.active { color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 12%, transparent); }
 @media (max-width: 767px) { .top-bar { display: none; } }
 
+/* Admin row controls (user role / delete) + danger zone */
+.member-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 0; }
+.member-actions { display: flex; align-items: center; gap: 8px; }
+.ui-select.sm { padding: 4px 8px; font-size: .8rem; }
+.danger-zone { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--ui-danger) 35%, var(--ui-stroke-secondary)); border-radius: 12px; background: color-mix(in srgb, var(--ui-danger) 5%, transparent); }
+.ghost-button.danger { color: var(--ui-danger); border-color: color-mix(in srgb, var(--ui-danger) 40%, transparent); }
+.ghost-button.danger:hover { background: var(--ui-danger-bg-2); }
+
 /* Account / profile menu (top-right) */
 .avatar.xs { width: 24px; height: 24px; border-radius: 8px; font-size: .76rem; }
 .user-menu-wrap { position: relative; display: inline-flex; }

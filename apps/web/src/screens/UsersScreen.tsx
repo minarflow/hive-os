@@ -1,9 +1,7 @@
 import React from 'react'
-import { api } from '../api/client'
 import { createInvite, listInvites, revokeInvite, type Invite } from '../api/invites'
+import { listUsers, updateUser, deleteUser, type TeamUser } from '../api/users'
 import type { User } from '../types'
-
-type TeamUser = { id: number; username: string; os_user: string; role: string; created_at: string }
 
 export function UsersScreen({ token, user, onRefresh }: { token: string; user: User; onRefresh: () => Promise<void> }) {
   const [users, setUsers] = React.useState<TeamUser[]>([])
@@ -16,7 +14,7 @@ export function UsersScreen({ token, user, onRefresh }: { token: string; user: U
 
   const refresh = React.useCallback(async () => {
     if (user.role !== 'environment_admin') return
-    setUsers((await api<{ users: TeamUser[] }>('/api/users', token)).users)
+    setUsers((await listUsers(token)).users)
     setInvites((await listInvites(token)).invites)
   }, [token, user.role])
 
@@ -36,11 +34,30 @@ export function UsersScreen({ token, user, onRefresh }: { token: string; user: U
   async function revoke(code: string) {
     try { await revokeInvite(token, code); await refresh() } catch (err) { setError(String(err)) }
   }
+  async function changeRole(u: TeamUser, nextRole: string) {
+    if (nextRole === u.role) return
+    setError('')
+    try { await updateUser(token, u.id, { role: nextRole }); await refresh(); await onRefresh() } catch (err) { setError(String(err)) }
+  }
+  async function removeUser(u: TeamUser) {
+    if (!window.confirm(`Delete user "${u.username}"? Their chats & profiles will be removed.`)) return
+    setError('')
+    try { await deleteUser(token, u.id); await refresh(); await onRefresh() } catch (err) { setError(String(err)) }
+  }
 
   if (user.role !== 'environment_admin') return <section className="placeholder-view"><div className="assistant-bubble compact"><h1>Team Users</h1><p>Environment admin access required.</p></div></section>
 
   return <section className="users-view">
-    <div className="panel"><div className="panel-head"><h3>Team users</h3><span>{users.length}</span></div>{users.map(u => <p className="member-row" key={u.id}><strong>{u.username}</strong><span>{u.role}</span></p>)}</div>
+    <div className="panel"><div className="panel-head"><h3>Team users</h3><span>{users.length}</span></div>{users.map(u => <div className="member-row" key={u.id}>
+      <strong>{u.username}{u.id === user.id && <span className="muted"> (you)</span>}</strong>
+      <div className="member-actions">
+        <select className="ui-select sm" value={u.role === 'environment_admin' ? 'environment_admin' : 'member'} disabled={u.id === user.id} onChange={e => void changeRole(u, e.target.value)}>
+          <option value="member">Member</option>
+          <option value="environment_admin">Admin</option>
+        </select>
+        {u.id !== user.id && <button className="ghost-button danger" onClick={() => void removeUser(u)}>Delete</button>}
+      </div>
+    </div>)}</div>
 
     <div className="panel">
       <div className="panel-head"><h3>Invite a teammate</h3><span>self-register link</span></div>

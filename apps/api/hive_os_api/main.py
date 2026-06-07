@@ -67,6 +67,11 @@ class UserCreateRequest(BaseModel):
     profile_slug: str = "default"
 
 
+class UserUpdateRequest(BaseModel):
+    role: str | None = Field(default=None, pattern=r"^(environment_admin|member)$")
+    password: str | None = Field(default=None, min_length=8)
+
+
 class PasswordChangeRequest(BaseModel):
     current_password: str
     new_password: str = Field(min_length=8)
@@ -752,6 +757,69 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         provision_user_workspace(db(), cfg, created)
         return {"user": public_user(created), "profile": profile_payload(profile)}
 
+    def _admin_count(exclude_id: int | None = None) -> int:
+        q = "SELECT COUNT(*) AS c FROM users WHERE role = 'environment_admin'"
+        params: tuple = ()
+        if exclude_id is not None:
+            q += " AND id != ?"; params = (exclude_id,)
+        return db().execute(q, params).fetchone()["c"]
+
+    def _purge_project(project: dict[str, Any]) -> None:
+        """Delete a project's on-disk dir (jailed to workspace root) + its DB row."""
+        path = project.get("path")
+        root = str(Path(cfg["workspace_root"]).resolve())
+        if path:
+            try:
+                rp = Path(path).resolve()
+                if str(rp).startswith(root + os.sep) and rp.exists():
+                    __import__("shutil").rmtree(rp)
+            except Exception:
+                logging.getLogger("hive_os.projects").exception("project dir removal failed for %s", project.get("slug"))
+        db().execute("DELETE FROM projects WHERE id = ?", (project["id"],))
+
+    @app.patch("/api/users/{user_id}")
+    def update_user(user_id: int, payload: UserUpdateRequest, user: dict[str, Any] = Depends(admin_user)):
+        target = db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="user not found")
+        target = dict(target)
+        if payload.role and payload.role != target["role"]:
+            # Don't let the last admin demote themselves into a lockout.
+            if target["role"] == "environment_admin" and payload.role != "environment_admin" and _admin_count(exclude_id=user_id) == 0:
+                raise HTTPException(status_code=400, detail="cannot demote the last environment admin")
+            db().execute("UPDATE users SET role = ? WHERE id = ?", (payload.role, user_id))
+            db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'user.role', 'user', ?)", (user["id"], str(user_id)))
+        if payload.password:
+            db().execute("UPDATE users SET password_hash = ?, password_set_at = ? WHERE id = ?", (hash_password(payload.password), iso_now(), user_id))
+            db().execute("UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP WHERE user_id = ?", (user_id,))  # force re-login
+            db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'user.password_reset', 'user', ?)", (user["id"], str(user_id)))
+        return {"user": public_user(dict(db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()))}
+
+    @app.delete("/api/users/{user_id}")
+    def delete_user(user_id: int, user: dict[str, Any] = Depends(admin_user)):
+        target = db().execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="user not found")
+        if user_id == user["id"]:
+            raise HTTPException(status_code=400, detail="cannot delete yourself")
+        if dict(target)["role"] == "environment_admin" and _admin_count(exclude_id=user_id) == 0:
+            raise HTTPException(status_code=400, detail="cannot delete the last environment admin")
+        shared_owned = db().execute("SELECT COUNT(*) AS c FROM projects WHERE owner_user_id = ? AND visibility = 'shared'", (user_id,)).fetchone()["c"]
+        if shared_owned:
+            raise HTTPException(status_code=409, detail="user owns shared project(s) — transfer or delete those first")
+        # Remove the user's private projects (personal workspace etc.) so the
+        # non-cascading owner_user_id FK doesn't block the delete.
+        for prow in db().execute("SELECT * FROM projects WHERE owner_user_id = ?", (user_id,)).fetchall():
+            _purge_project(dict(prow))
+        # Null out non-cascading references so the delete (and history) stays intact.
+        db().execute("UPDATE tasks SET created_by = NULL WHERE created_by = ?", (user_id,))
+        db().execute("UPDATE invites SET created_by = NULL WHERE created_by = ?", (user_id,))
+        db().execute("UPDATE invites SET used_by = NULL WHERE used_by = ?", (user_id,))
+        db().execute("UPDATE audit_log SET actor_user_id = NULL WHERE actor_user_id = ?", (user_id,))
+        db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'user.delete', 'user', ?)", (user["id"], str(user_id)))
+        db().execute("DELETE FROM users WHERE id = ?", (user_id,))  # cascades sessions, profiles, members, runs
+        return {"ok": True, "id": user_id}
+
     # ── Invite links (admin generates, user self-registers) ──────────
     def _valid_invite(code: str) -> dict[str, Any]:
         row = db().execute("SELECT * FROM invites WHERE code = ?", (code,)).fetchone()
@@ -1001,6 +1069,15 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'project.remove', 'project', ?)", (user["id"], slug))
         run_projectctl("remove", slug, target["os_user"])
         return {"ok": True, "slug": slug, "username": target["username"]}
+
+    @app.delete("/api/projects/{slug}")
+    def delete_project(slug: str, user: dict[str, Any] = Depends(current_user)):
+        project = visible_project(slug, user)
+        if project["role"] != "owner" and user["role"] != "environment_admin":
+            raise HTTPException(status_code=403, detail="project owner or environment admin required")
+        db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'project.delete', 'project', ?)", (user["id"], slug))
+        _purge_project(project)  # rm dir (jailed) + DB row; cascades members/tasks, nulls session/run links
+        return {"ok": True, "slug": slug}
 
     @app.get("/api/projects/{slug}/members")
     def list_members(slug: str, user: dict[str, Any] = Depends(current_user)):
