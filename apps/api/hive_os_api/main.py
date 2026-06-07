@@ -11,7 +11,7 @@ from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any, AsyncIterator
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect, status
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -1197,6 +1197,24 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         _audit_fs(user, "file.write", slug, path)
         return {"ok": True, "path": path}
+
+    @app.post("/api/projects/{slug}/upload")
+    async def project_upload(slug: str, file: UploadFile = File(...), user: dict[str, Any] = Depends(current_user)):
+        root = _project_root(slug, user)
+        name = Path(file.filename or "file").name or "file"
+        try:
+            target = fsapi.resolve_in_project(root, f"uploads/{name}")
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if target.exists():  # de-dupe: name.ext -> name-1.ext
+            stem, suffix, i = target.stem, target.suffix, 1
+            while target.exists():
+                target = target.parent / f"{stem}-{i}{suffix}"; i += 1
+        target.write_bytes(await file.read())
+        rel = f"uploads/{target.name}"
+        _audit_fs(user, "file.upload", slug, rel)
+        return {"path": rel, "name": target.name}
 
     @app.post("/api/projects/{slug}/fs/mkdir")
     def project_mkdir(slug: str, payload: FsPathRequest, user: dict[str, Any] = Depends(current_user)):

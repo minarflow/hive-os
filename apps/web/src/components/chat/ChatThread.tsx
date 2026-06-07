@@ -5,7 +5,7 @@ import { IconSparkle, IconArrowDown } from '../shell/icons'
 
 const ROLE_LABEL: Record<string, string> = { user: 'You', assistant: 'Hermes', error: 'Run error', system: 'Hive OS' }
 
-export function ChatThread({ messages, events, pendingRunId }: { messages: ChatMessage[]; events: RunEvent[]; pendingRunId?: number | null; pendingText?: string }) {
+export function ChatThread({ messages, events, pendingRunId, token, slug }: { messages: ChatMessage[]; events: RunEvent[]; pendingRunId?: number | null; pendingText?: string; token?: string; slug?: string }) {
   // The live streaming bubble shows while a run is pending. The owner clears
   // pendingRunId only AFTER reloading the stored message, so the live text never
   // double-renders with (or vanishes before) the saved message (anti-flicker).
@@ -58,7 +58,7 @@ export function ChatThread({ messages, events, pendingRunId }: { messages: ChatM
   return <div className="thread" ref={scrollRef} onScroll={onScroll}>
     <div className="chat-log">
       {empty && <div className="chat-empty"><div className="chat-empty-mark"><IconSparkle size={30} /></div><h3>Start a conversation</h3><p>Ask Hermes anything in this project. Type <code>/</code> for commands.</p></div>}
-      {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{ROLE_LABEL[message.role] || 'Hive OS'}</strong>{message.role === 'user' ? <span>{message.content}</span> : <MessageContent content={message.content} />}</div>)}
+      {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{ROLE_LABEL[message.role] || 'Hive OS'}</strong><MessageContent content={message.content} token={token} slug={slug} /></div>)}
       {tools.length > 0 && <div className="tool-cards enter">{tools.map(t => <div key={t.id} className={`tool-card ${t.status}`}><span className="tool-dot" />{t.title}</div>)}</div>}
       {streaming && <div className="chat-line assistant"><strong>Hermes</strong><span className="md-stream">{streaming}</span></div>}
       {waiting && <div className="chat-line pending enter"><strong>Hermes</strong><span className="typing"><i /><i /><i /></span></div>}

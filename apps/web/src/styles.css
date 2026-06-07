@@ -384,6 +384,17 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 /* Composer auto-resize */
 .composer textarea { min-height: 44px; max-height: 200px; resize: none; overflow-y: auto; }
 
+/* Composer attachments + chat file rendering */
+.composer-atts { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 4px 8px; }
+.composer-att { display: inline-flex; align-items: center; gap: 5px; background: var(--ui-surface-subtle); border: 1px solid var(--ui-stroke-tertiary); border-radius: 8px; padding: 3px 4px 3px 8px; font-size: .76rem; color: var(--ui-text-secondary); }
+.composer-att button { display: inline-grid; place-items: center; border: 0; background: transparent; color: var(--ui-text-tertiary); padding: 2px; border-radius: 4px; }
+.composer-att button:hover { color: var(--ui-danger); background: var(--ui-row-hover-background); }
+.attach-btn { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--ui-stroke-secondary); border-radius: 9px; background: var(--ui-surface); color: var(--ui-text-secondary); padding: 6px 10px; font-size: .8rem; font-weight: 500; }
+.attach-btn:hover:not(:disabled) { color: var(--ui-text-primary); border-color: var(--ui-stroke-primary); }
+.md-img { max-width: min(360px, 100%); max-height: 320px; border-radius: 10px; margin: 4px 0; display: block; border: 1px solid var(--ui-stroke-tertiary); }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--ui-stroke-secondary); border-radius: 9px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 6px 10px; font-size: .82rem; font-weight: 500; text-decoration: none; margin: 4px 4px 4px 0; }
+.file-chip:hover { border-color: var(--ui-accent); color: var(--ui-accent); }
+
 /* ── Theme presets ────────────────────────────────────────────────── */
 :root[data-theme="dark"] {
   color-scheme: dark;

@@ -65,12 +65,12 @@ export function TaskChat({ token, task, onTaskChanged }: { token: string; task: 
   }
 
   return <div className="task-chat">
-    <ChatThread messages={messages} events={events} pendingRunId={busyRun} />
+    <ChatThread messages={messages} events={events} pendingRunId={busyRun} token={token} slug={task.project_slug || undefined} />
     {messages.length === 0 && !busyRun && <div className="task-kickoff">
       <div><strong>Belum dikerjakan.</strong><span className="muted"> Mulai agen dengan brief task ini, atau ketik instruksi sendiri.</span></div>
       <button className="primary-button" onClick={kickoff}>▶ Kerjakan task ini</button>
     </div>}
     {error && <div className="error-bar">{error}</div>}
-    <div className="chat-dock"><div className="chat-controls"><span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(token, busyRun)}>Stop</button>}</div><Composer disabled={false} token={token} onSubmit={submit} /></div>
+    <div className="chat-dock"><div className="chat-controls"><span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(token, busyRun)}>Stop</button>}</div><Composer disabled={false} token={token} slug={task.project_slug || undefined} onSubmit={submit} /></div>
   </div>
 }
