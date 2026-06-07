@@ -131,6 +131,7 @@ templates/             project workspace templates
 
 ## Docs
 
+- [Status & handoff](docs/STATUS.md) — current state + next steps
 - [Installation](docs/installation.md)
 - [Backup & recovery](docs/backup.md)
 - [Security boundaries](docs/security-boundaries.md)
