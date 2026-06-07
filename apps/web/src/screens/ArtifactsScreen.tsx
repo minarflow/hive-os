@@ -52,8 +52,19 @@ function FileView({ token, slug, path, fs, onClose }: { token: string; slug: str
 export function ArtifactsScreen({ token, projects, activeProject, pendingFile, onPendingConsumed }: { token: string; projects: Project[]; activeProject: Project | null; pendingFile?: { slug: string; path: string } | null; onPendingConsumed?: () => void }) {
   const [slug, setSlug] = React.useState(activeProject?.slug || projects[0]?.slug || '')
   const [path, setPath] = React.useState<string | null>(null)
+  const [treeW, setTreeW] = React.useState(() => Number(localStorage.getItem('hive.filesTreeW')) || 260)
   const project = projects.find(p => p.slug === slug) || null
   const fs = React.useMemo(() => project ? projectFs(token, project.slug) : null, [token, project?.slug])
+
+  React.useEffect(() => { localStorage.setItem('hive.filesTreeW', String(treeW)) }, [treeW])
+  function startResize(e: React.MouseEvent) {
+    e.preventDefault()
+    const startX = e.clientX, startW = treeW
+    const move = (ev: MouseEvent) => setTreeW(Math.min(560, Math.max(180, startW + (ev.clientX - startX))))
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.cursor = ''; document.body.style.userSelect = '' }
+    document.body.style.cursor = 'col-resize'; document.body.style.userSelect = 'none'
+    window.addEventListener('mousemove', move); window.addEventListener('mouseup', up)
+  }
 
   React.useEffect(() => { setPath(null) }, [slug])
   React.useEffect(() => {
@@ -68,8 +79,9 @@ export function ArtifactsScreen({ token, projects, activeProject, pendingFile, o
       <Dropdown value={slug} onChange={setSlug} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
       <span className="muted files-hint">Browse, edit &amp; preview project files</span>
     </div>
-    <div className="files-body">
+    <div className="files-body" style={{ gridTemplateColumns: `${treeW}px 6px minmax(0, 1fr)` }}>
       {fs && <WorkspaceTree fs={fs} title="Files" className="files-tree" onOpenFile={setPath} activePath={path} />}
+      <div className="files-resize" onMouseDown={startResize} role="separator" aria-label="Resize file tree" />
       <div className="files-main">
         {path && fs ? <FileView key={path} token={token} slug={slug} path={path} fs={fs} onClose={() => setPath(null)} />
           : <div className="files-empty"><p className="muted">Pilih file dari kiri buat lihat / edit. File HTML bisa di-Preview (render), Markdown juga.</p></div>}
