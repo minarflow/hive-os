@@ -36,8 +36,8 @@
   --ui-success: #22c55e;
   --ui-success-strong: #15803d;
   --ui-success-bg: #f0fdf4;
-  --ui-code-bg: #0f172a;
-  --ui-code-fg: #e2e8f0;
+  --ui-code-bg: #f1f3f5;
+  --ui-code-fg: #1f2937;
   --ui-scrim: rgba(15,23,42,.24);
   font-family: var(--font-sans);
 }
@@ -361,7 +361,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .md h1 { font-size: 1.3rem; } .md h2 { font-size: 1.15rem; } .md h3 { font-size: 1rem; }
 .md ul, .md ol { margin: 0 0 10px; padding-left: 20px; }
 .md li { margin: 2px 0; }
-.md code { background: var(--ui-row-hover-background); border-radius: 6px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
+.md code { background: color-mix(in srgb, var(--ui-text-tertiary) 16%, transparent); border-radius: 6px; padding: 1px 5px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86em; }
 .md pre { background: var(--ui-code-bg); color: var(--ui-code-fg); border-radius: 12px; padding: 12px 14px; overflow: auto; margin: 0 0 10px; }
 .md pre code { background: transparent; color: inherit; padding: 0; font-size: .82rem; }
 .md a { color: var(--ui-accent); text-decoration: underline; }
@@ -402,7 +402,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
   --ui-text-primary: #e6edf3;
   --ui-text-secondary: #aab4c0;
   --ui-text-tertiary: #7d8896;
-  --ui-code-bg: #0b0f15;
+  --ui-code-bg: #1b2027;
   --ui-code-fg: #e6edf3;
   --ui-scrim: rgba(0,0,0,.5);
 }
@@ -511,7 +511,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 
 /* App-wide styled dropdown (matches the Wiki picker) */
 .dd { position: relative; display: inline-block; }
-.dd-btn { display: inline-flex; align-items: center; gap: 8px; width: 100%; border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 7px 10px; font-size: .86rem; font-weight: 600; min-width: 160px; }
+.dd-btn { display: inline-flex; align-items: center; gap: 8px; width: 100%; border: 1px solid var(--ui-stroke-secondary); border-radius: 10px; background: var(--ui-surface); color: var(--ui-text-primary); padding: 7px 10px; font-size: .86rem; font-weight: 500; min-width: 160px; }
 .dd-btn:hover { border-color: var(--ui-stroke-primary); }
 .dd-btn:disabled { opacity: .55; cursor: default; }
 .dd-label { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
