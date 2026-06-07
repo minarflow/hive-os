@@ -79,7 +79,7 @@ export function ArtifactsScreen({ token, projects, activeProject, pendingFile, o
       <Dropdown value={slug} onChange={setSlug} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
       <span className="muted files-hint">Browse, edit &amp; preview project files</span>
     </div>
-    <div className="files-body" style={{ gridTemplateColumns: `${treeW}px 6px minmax(0, 1fr)` }}>
+    <div className={`files-body ${path ? 'has-file' : ''}`} style={{ gridTemplateColumns: `${treeW}px 6px minmax(0, 1fr)` }}>
       {fs && <WorkspaceTree fs={fs} title="Files" className="files-tree" onOpenFile={setPath} activePath={path} />}
       <div className="files-resize" onMouseDown={startResize} role="separator" aria-label="Resize file tree" />
       <div className="files-main">

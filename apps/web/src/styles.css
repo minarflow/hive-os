@@ -583,7 +583,15 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .file-preview.img img { max-width: 100%; max-height: 100%; }
 .file-preview-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: #fff; }
 .file-preview.md-doc { padding: 18px 22px; }
-@media (max-width: 767px) { .files-body { display: flex; flex-direction: column; } .files-tree { max-height: 40%; } .files-main { flex: 1; } .files-resize { display: none; } }
+/* Mobile: master-detail — show the tree, or the open file full-screen (not both). */
+@media (max-width: 767px) {
+  .files-body { display: flex; flex-direction: column; }
+  .files-resize { display: none; }
+  .files-body .files-tree { flex: 1; max-height: none; }
+  .files-body .files-main { display: none; }
+  .files-body.has-file .files-tree { display: none; }
+  .files-body.has-file .files-main { display: block; flex: 1; }
+}
 
 .mobile-actions { display: flex; align-items: center; gap: 6px; }
 
