@@ -609,7 +609,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
   .files-head { flex-wrap: wrap; gap: 8px; }
   .files-hint { display: none; }
   .files-run { margin-left: auto; }
-  .modal-card.app-runner { width: 100vw; height: 100dvh; max-width: none; border-radius: 0; }
+  .modal-card.app-runner { width: 100%; max-width: none; height: calc(100dvh - 40px); }
   .app-runner-bar { flex-wrap: wrap; }
   .app-runner-bar .ui-select, .app-runner-bar .app-port, .app-runner-bar .app-dir { width: 100%; flex: 1 1 100%; }
   .app-runner-bar button { flex: 1; }
