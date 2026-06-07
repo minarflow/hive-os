@@ -495,6 +495,22 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .ghost-button.danger { color: var(--ui-danger); border-color: color-mix(in srgb, var(--ui-danger) 40%, transparent); }
 .ghost-button.danger:hover { background: var(--ui-danger-bg-2); }
 
+/* Global search modal */
+.modal-card.search-modal { max-width: 620px; width: 92vw; max-height: 70vh; display: flex; flex-direction: column; gap: 10px; padding: 14px; }
+.search-input { width: 100%; font-size: .95rem; padding: 10px 12px; }
+.search-results { overflow-y: auto; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.search-group { display: flex; flex-direction: column; gap: 2px; }
+.search-item { display: flex; flex-direction: column; gap: 1px; width: 100%; text-align: left; border: 0; border-radius: 8px; background: transparent; color: var(--ui-text-primary); padding: 7px 9px; }
+.search-item:hover { background: var(--ui-row-hover-background); }
+.search-item strong { font-size: .88rem; font-weight: 600; }
+.search-item small { color: var(--ui-text-tertiary); font-size: .76rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Toggle pill (settings) */
+.toggle-pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--ui-stroke-secondary); border-radius: 999px; background: var(--ui-surface); color: var(--ui-text-secondary); padding: 5px 12px 5px 6px; font-size: .82rem; font-weight: 650; }
+.toggle-pill .toggle-knob { width: 16px; height: 16px; border-radius: 50%; background: var(--ui-text-tertiary); transition: background .15s; }
+.toggle-pill.on { border-color: var(--ui-accent); color: var(--ui-accent); }
+.toggle-pill.on .toggle-knob { background: var(--ui-accent); }
+
 /* Account / profile menu (top-right) */
 .avatar.xs { width: 24px; height: 24px; border-radius: 8px; font-size: .76rem; }
 .user-menu-wrap { position: relative; display: inline-flex; }

@@ -5,6 +5,7 @@ import { useEventStream } from '../hooks/useEventStream'
 import type { ChatMessage, ChatSession, Profile, Project, RunEvent } from '../types'
 import { ChatThread } from '../components/chat/ChatThread'
 import { Composer } from '../components/chat/Composer'
+import { notify } from '../lib/notify'
 
 function localCommandReply(name: string, props: { activeProject: Project | null; activeProfile: Profile | null; activeSession: ChatSession | null }): string {
   switch (name) {
@@ -57,7 +58,7 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     }
     if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
     flush()
-    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void loadMessages(event.session_id); window.dispatchEvent(new CustomEvent('hive:files-changed')) }
+    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void loadMessages(event.session_id); window.dispatchEvent(new CustomEvent('hive:files-changed')); if (event.type === 'run.completed') notify('Hermes selesai', 'Ada balasan baru di chat.') }
     else if (event.type === 'message.complete') void loadMessages(event.session_id)
   }, [flush, loadMessages])
 

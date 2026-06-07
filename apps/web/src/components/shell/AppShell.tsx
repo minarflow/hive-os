@@ -3,7 +3,8 @@ import type { ChatSession, Profile, Project, User, View } from '../../types'
 import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { RightRail } from './RightRail'
-import { IconPanelRight, IconPanelLeft, IconGear } from './icons'
+import { SearchModal } from './SearchModal'
+import { IconPanelRight, IconPanelLeft, IconGear, IconSearch } from './icons'
 
 const matches = (query: string) => typeof window !== 'undefined' && window.matchMedia(query).matches
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -39,6 +40,7 @@ export function AppShell(props: {
   const [drawerOpen, setDrawerOpen] = React.useState(false)
   const [railOpen, setRailOpen] = React.useState(false)
   const [menuOpen, setMenuOpen] = React.useState(false)
+  const [searchOpen, setSearchOpen] = React.useState(false)
   const [leftWidth, setLeftWidth] = React.useState(() => stored('hive.leftWidth', 294))
   const [rightWidth, setRightWidth] = React.useState(() => stored('hive.rightWidth', 292))
   const [rightHidden, setRightHidden] = React.useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('hive.rightHidden') === '1'))
@@ -84,6 +86,7 @@ export function AppShell(props: {
     <div className={`app-shell ${railOpen ? 'rail-open' : ''} ${rightHidden ? 'right-hidden' : ''} ${leftCollapsed ? 'left-rail' : ''}`} style={shellStyle}>
       <header className="top-bar">
         <button className="tool-btn" onClick={toggleLeft} aria-label="Toggle sidebar" title={leftCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}><IconPanelLeft size={17} /></button>
+        <button className="tool-btn" onClick={() => setSearchOpen(true)} aria-label="Search" title="Search"><IconSearch size={17} /></button>
         <span className="top-bar-spacer" />
         <button className={`tool-btn ${!rightHidden ? 'active' : ''}`} onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel"><IconPanelRight size={17} /></button>
         <div className="user-menu-wrap">
@@ -110,6 +113,7 @@ export function AppShell(props: {
       <div className="resize-handle resize-right" style={{ right: 'var(--right-w)' }} onMouseDown={startResize('right')} role="separator" aria-label="Resize files panel" />
       {railOpen && <button aria-label="Close files" className="drawer-scrim rail-scrim" onClick={() => setRailOpen(false)} />}
       <RightRail token={props.token} activeProfile={props.activeProfile} activeProject={props.activeProject} activeSession={props.activeSession} projects={props.projects} />
+      {searchOpen && <SearchModal token={props.token} sessions={props.sessions} projects={props.projects} onClose={() => setSearchOpen(false)} onSelectSession={props.onSelectSession} onOpenTask={props.onOpenTask} onSelectProject={props.onSelectProject} onSelectView={props.onSelectView} />}
     </div>
   )
 }

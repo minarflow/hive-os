@@ -1258,6 +1258,31 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         ).fetchall()
         return {"sessions": [session_payload(dict(row)) for row in rows]}
 
+    @app.get("/api/search")
+    def search(q: str = "", user: dict[str, Any] = Depends(current_user)):
+        term = q.strip()
+        if len(term) < 2:
+            return {"projects": [], "chats": [], "tasks": [], "messages": []}
+        like = "%" + term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+        uid = user["id"]
+        projects = [dict(r) for r in db().execute(
+            "SELECT p.slug, p.name FROM projects p JOIN project_members pm ON pm.project_id = p.id "
+            "WHERE pm.user_id = ? AND (p.name LIKE ? ESCAPE '\\' OR p.slug LIKE ? ESCAPE '\\') ORDER BY p.name LIMIT 10",
+            (uid, like, like)).fetchall()]
+        chats = [dict(r) for r in db().execute(
+            "SELECT id, title, task_id FROM sessions WHERE owner_user_id = ? AND title LIKE ? ESCAPE '\\' "
+            "ORDER BY updated_at DESC LIMIT 10", (uid, like)).fetchall()]
+        tasks = [dict(r) for r in db().execute(
+            "SELECT t.id, t.title, t.status, p.slug AS project_slug FROM tasks t JOIN projects p ON p.id = t.project_id "
+            "JOIN project_members pm ON pm.project_id = p.id WHERE pm.user_id = ? "
+            "AND (t.title LIKE ? ESCAPE '\\' OR t.description LIKE ? ESCAPE '\\') ORDER BY t.updated_at DESC LIMIT 10",
+            (uid, like, like)).fetchall()]
+        msgs = [dict(r) for r in db().execute(
+            "SELECT m.session_id, m.role, substr(m.content, 1, 160) AS snippet, s.title AS session_title, s.task_id "
+            "FROM messages m JOIN sessions s ON s.id = m.session_id WHERE s.owner_user_id = ? "
+            "AND m.content LIKE ? ESCAPE '\\' ORDER BY m.id DESC LIMIT 15", (uid, like)).fetchall()]
+        return {"projects": projects, "chats": chats, "tasks": tasks, "messages": msgs}
+
     @app.post("/api/sessions", status_code=201)
     def create_session(payload: SessionCreateRequest, user: dict[str, Any] = Depends(current_user)):
         profile = profile_for_user(payload.profile_id, user)

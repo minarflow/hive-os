@@ -70,6 +70,10 @@ export const IconMenu = ({ size }: IconProps) => (
   <Svg size={size}><path d="M4 7h16M4 12h16M4 17h16" /></Svg>
 )
 
+export const IconSearch = ({ size }: IconProps) => (
+  <Svg size={size}><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></Svg>
+)
+
 export const IconPlus = ({ size }: IconProps) => (
   <Svg size={size}><path d="M12 5v14M5 12h14" /></Svg>
 )
