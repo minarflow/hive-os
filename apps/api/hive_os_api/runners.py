@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Iterable
 
 
@@ -104,3 +105,33 @@ def detect_runners(path_env: str | None = None, registry: Iterable[RunnerDefinit
         )
 
     return detected
+
+
+def _hermes_home_usable(home: str) -> bool:
+    p = Path(home)
+    return p.is_dir() and ((p / "auth.json").exists() or (p / "config.yaml").exists())
+
+
+def hermes_status(source_home: str | None = None, path_env: str | None = None) -> dict:
+    """Detect a usable Hermes runner without installing anything.
+
+    Bring-your-own: reuse an existing `hermes` binary on PATH plus a Hermes home
+    that has credentials/config. Returns ready + actionable guidance when not.
+    """
+    resolved = path_env if path_env is not None else augmented_path()
+    binary = resolve_binary("hermes", resolved)
+    home = source_home or os.path.expanduser("~/.hermes")
+    home_ok = _hermes_home_usable(home)
+    ready = bool(binary) and home_ok
+    if ready:
+        guidance = ""
+    elif not binary and not home_ok:
+        guidance = ("Hermes not found. Install the Hermes agent CLI, run `hermes -z` "
+                    "to authenticate, then restart Hive. See docs/installation.md.")
+    elif not binary:
+        guidance = ("Hermes credentials found but the `hermes` binary is not on PATH. "
+                    "Install/expose the Hermes CLI, then restart Hive.")
+    else:
+        guidance = (f"`hermes` is installed but no usable Hermes home at {home}. "
+                    "Run `hermes -z` to authenticate, or set HIVEOS_SOURCE_HERMES_HOME.")
+    return {"ready": ready, "binary": binary, "home": home if home_ok else None, "guidance": guidance}

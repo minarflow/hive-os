@@ -6,7 +6,46 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from hive_os_api.main import create_app
-from hive_os_api.runners import RunnerDefinition, detect_runners
+from hive_os_api.runners import RunnerDefinition, detect_runners, hermes_status
+
+
+def _make_hermes_bin(tmp_path: Path) -> str:
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    exe = bindir / "hermes"
+    exe.write_text("#!/bin/sh\nexit 0\n")
+    exe.chmod(0o755)
+    return str(bindir)
+
+
+def test_hermes_status_ready_when_bin_and_home_present(tmp_path):
+    home = tmp_path / "hermes-home"
+    home.mkdir()
+    (home / "auth.json").write_text("{}")
+    bindir = _make_hermes_bin(tmp_path)
+    st = hermes_status(source_home=str(home), path_env=bindir)
+    assert st["ready"] is True
+    assert st["binary"].endswith("/hermes")
+    assert st["home"] == str(home)
+    assert st["guidance"] == ""
+
+
+def test_hermes_status_missing_binary(tmp_path):
+    home = tmp_path / "hermes-home"
+    home.mkdir()
+    (home / "config.yaml").write_text("x: 1")
+    st = hermes_status(source_home=str(home), path_env=str(tmp_path / "empty"))
+    assert st["ready"] is False
+    assert st["binary"] is None
+    assert "PATH" in st["guidance"] or "install" in st["guidance"].lower()
+
+
+def test_hermes_status_missing_home(tmp_path):
+    bindir = _make_hermes_bin(tmp_path)
+    st = hermes_status(source_home=str(tmp_path / "nope"), path_env=bindir)
+    assert st["ready"] is False
+    assert st["home"] is None
+    assert "hermes -z" in st["guidance"]
 
 
 def test_detect_runners_uses_hive_registry_and_controlled_path(tmp_path: Path):
