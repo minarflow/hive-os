@@ -4,7 +4,7 @@ import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { RightRail } from './RightRail'
 import { SearchModal } from './SearchModal'
-import { IconPanelRight, IconPanelLeft, IconGear, IconSearch } from './icons'
+import { IconPanelRight, IconPanelLeft, IconGear, IconSearch, IconAgents, IconUsers } from './icons'
 
 const matches = (query: string) => typeof window !== 'undefined' && window.matchMedia(query).matches
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -95,7 +95,10 @@ export function AppShell(props: {
             <button className="menu-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
             <div className="user-menu" role="menu">
               <div className="user-menu-head"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div></div>
+              <button className="user-menu-item" onClick={() => { props.onSelectView('profiles'); setMenuOpen(false) }}><IconAgents size={15} /> Agents</button>
+              {props.user.role === 'environment_admin' && <button className="user-menu-item" onClick={() => { props.onSelectView('users'); setMenuOpen(false) }}><IconUsers size={15} /> Team Users</button>}
               <button className="user-menu-item" onClick={() => { props.onSelectView('settings'); setMenuOpen(false) }}><IconGear size={15} /> Settings</button>
+              <div className="user-menu-sep" />
               <button className="user-menu-item danger" onClick={() => { setMenuOpen(false); props.onLogout() }}>Logout</button>
             </div>
           </>}

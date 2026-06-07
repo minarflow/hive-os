@@ -1,21 +1,20 @@
 import React from 'react'
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
-import { IconNewChat, IconProjects, IconAgents, IconUsers, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts, IconTasks } from './icons'
+import { IconNewChat, IconProjects, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts, IconTasks } from './icons'
 import { ProjectSwitcher } from './ProjectSwitcher'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
 
+// Work-focused nav. Account/management (Agents, Team Users, Settings) live in the
+// top-right profile menu.
 const nav: NavItem[] = [
   { id: 'chat', label: 'New Chat', icon: IconNewChat, action: 'new-chat' },
   { id: 'projects', label: 'Projects', icon: IconProjects },
   { id: 'wiki', label: 'Wiki', icon: IconWiki },
   { id: 'artifacts', label: 'Artifacts', icon: IconArtifacts },
-  { id: 'tasks', label: 'Tasks', icon: IconTasks },
-  { id: 'profiles', label: 'Agents', icon: IconAgents },
-  { id: 'users', label: 'Team Users', icon: IconUsers }
+  { id: 'tasks', label: 'Tasks', icon: IconTasks }
 ]
-const ADMIN_ONLY = new Set<View>(['users'])
 
 export function Sidebar(props: {
   activeProfile: Profile | null
@@ -38,7 +37,7 @@ export function Sidebar(props: {
 }) {
   return <div className="sidebar-inner">
     <div className="sidebar-head"><div className="brand-row"><span className="brand-dot">H</span><strong>Hive OS</strong></div><div className="sidebar-actions"><button className="icon-button mobile-only" onClick={props.onClose} aria-label="Close menu"><IconClose size={18} /></button></div></div>
-    <section className="nav-group">{nav.filter(item => !ADMIN_ONLY.has(item.id) || props.user.role === 'environment_admin').map(item => {
+    <section className="nav-group">{nav.map(item => {
       const Icon = item.icon
       const onClick = () => {
         if (item.action === 'new-chat') props.onNewChat()
