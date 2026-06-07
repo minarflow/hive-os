@@ -1,6 +1,7 @@
 import React from 'react'
 import { createInvite, listInvites, revokeInvite, type Invite } from '../api/invites'
 import { listUsers, updateUser, deleteUser, type TeamUser } from '../api/users'
+import { Dropdown } from '../components/ui/Dropdown'
 import type { User } from '../types'
 
 export function UsersScreen({ token, user, onRefresh }: { token: string; user: User; onRefresh: () => Promise<void> }) {
@@ -51,10 +52,7 @@ export function UsersScreen({ token, user, onRefresh }: { token: string; user: U
     <div className="panel"><div className="panel-head"><h3>Team users</h3><span>{users.length}</span></div>{users.map(u => <div className="member-row" key={u.id}>
       <strong>{u.username}{u.id === user.id && <span className="muted"> (you)</span>}</strong>
       <div className="member-actions">
-        <select className="ui-select sm" value={u.role === 'environment_admin' ? 'environment_admin' : 'member'} disabled={u.id === user.id} onChange={e => void changeRole(u, e.target.value)}>
-          <option value="member">Member</option>
-          <option value="environment_admin">Admin</option>
-        </select>
+        <Dropdown value={u.role === 'environment_admin' ? 'environment_admin' : 'member'} disabled={u.id === user.id} onChange={r => void changeRole(u, r)} options={[{ value: 'member', label: 'Member' }, { value: 'environment_admin', label: 'Admin' }]} />
         {u.id !== user.id && <button className="ghost-button danger" onClick={() => void removeUser(u)}>Delete</button>}
       </div>
     </div>)}</div>
@@ -64,7 +62,7 @@ export function UsersScreen({ token, user, onRefresh }: { token: string; user: U
       <p className="muted">Generate a link; they pick their own username, password &amp; Hermes profile. Single-use.</p>
       <div className="settings-rows" style={{ maxWidth: 'none' }}>
         <span className="srow-label">Role</span>
-        <select className="ui-select" value={role} onChange={e => setRole(e.target.value as 'member' | 'admin')}><option value="member">Member</option><option value="admin">Admin</option></select>
+        <Dropdown value={role} onChange={r => setRole(r as 'member' | 'admin')} options={[{ value: 'member', label: 'Member' }, { value: 'admin', label: 'Admin' }]} />
         <span className="srow-label">Expires in</span>
         <div className="seg sm">{[1, 7, 30].map(d => <button type="button" key={d} className={days === d ? 'active' : ''} onClick={() => setDays(d)}>{d}d</button>)}</div>
       </div>

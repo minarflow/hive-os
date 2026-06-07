@@ -5,7 +5,10 @@ import { useEventStream } from '../hooks/useEventStream'
 import type { ChatMessage, ChatSession, Profile, Project, RunEvent } from '../types'
 import { ChatThread } from '../components/chat/ChatThread'
 import { Composer } from '../components/chat/Composer'
+import { Dropdown } from '../components/ui/Dropdown'
 import { notify } from '../lib/notify'
+
+const cleanName = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
 
 function localCommandReply(name: string, props: { activeProject: Project | null; activeProfile: Profile | null; activeSession: ChatSession | null }): string {
   switch (name) {
@@ -109,6 +112,18 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     } catch (err) { setError(String(err)) }
   }
 
-  const controls = <div className="chat-controls"><label className="toolbar-control"><span className="ctl-label">Projects</span><select value={props.activeProject?.slug || ''} onChange={e => { if (!e.target.value) return props.onActiveProject(null); const p = props.projects.find(project => project.slug === e.target.value); if (p) props.onActiveProject(p) }}><option value="">No project</option>{props.projects.map(project => <option key={project.slug} value={project.slug}>{project.name}</option>)}</select></label><span className="ctl-divider" /><label className="toolbar-control"><span className="ctl-label">Agents</span><select value={props.activeProfile?.id || ''} onChange={e => { const p = props.profiles.find(profile => profile.id === Number(e.target.value)); if (p) props.onActiveProfile(p) }}>{props.profiles.map(profile => <option key={profile.id} value={profile.id}>{profile.name}</option>)}</select></label><span className="ctl-divider" /><span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(props.token, busyRun)} title="Cancel run">Cancel</button>}</div>
+  const controls = <div className="chat-controls">
+    <label className="toolbar-control"><span className="ctl-label">Projects</span>
+      <Dropdown value={props.activeProject?.slug || ''} onChange={slug => { if (!slug) return props.onActiveProject(null); const p = props.projects.find(project => project.slug === slug); if (p) props.onActiveProject(p) }}
+        options={[{ value: '', label: 'No project' }, ...props.projects.map(p => ({ value: p.slug, label: cleanName(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))]} />
+    </label>
+    <span className="ctl-divider" />
+    <label className="toolbar-control"><span className="ctl-label">Agents</span>
+      <Dropdown value={String(props.activeProfile?.id || '')} onChange={id => { const p = props.profiles.find(profile => profile.id === Number(id)); if (p) props.onActiveProfile(p) }}
+        options={props.profiles.map(p => ({ value: String(p.id), label: p.name }))} />
+    </label>
+    <span className="ctl-divider" />
+    <span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(props.token, busyRun)} title="Cancel run">Cancel</button>}
+  </div>
   return <section className="chat-stage"><ChatThread messages={messages} events={events} pendingRunId={busyRun} pendingText={busyRun ? 'Hermes is working…' : ''} />{error && <div className="error-bar">{error}</div>}<div className="chat-dock">{controls}<Composer disabled={!props.activeProfile} token={props.token} onSubmit={submit} /></div></section>
 }

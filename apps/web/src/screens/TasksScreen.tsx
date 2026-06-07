@@ -2,6 +2,7 @@ import React from 'react'
 import type { Project, Task, TaskStatus } from '../types'
 import { listTasks, createTask, getTask, updateTask, deleteTask } from '../api/tasks'
 import { TaskChat } from '../components/tasks/TaskChat'
+import { Dropdown } from '../components/ui/Dropdown'
 
 const COLUMNS: { key: TaskStatus; label: string }[] = [
   { key: 'todo', label: 'To do' },
@@ -72,7 +73,7 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
 
   return <section className="tasks-view">
     <div className="tasks-head">
-      <select className="ui-select" value={slug} onChange={e => setSlug(e.target.value)}>{projects.map(p => <option key={p.slug} value={p.slug}>{clean(p.name)}</option>)}</select>
+      <Dropdown value={slug} onChange={setSlug} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
       <button className="primary-button" onClick={() => setCreating(true)}>New task</button>
     </div>
     {creating && <div className="modal-scrim" onClick={() => setCreating(false)}><form className="modal-card" onClick={e => e.stopPropagation()} onSubmit={submitCreate}>

@@ -4,6 +4,7 @@ import { WorkspaceTree } from '../components/files/WorkspaceTree'
 import { projectFs } from '../api/fsAdapter'
 import { fetchRawBlob } from '../api/files'
 import { MessageContent } from '../components/chat/MessageContent'
+import { Dropdown } from '../components/ui/Dropdown'
 
 const IMG = /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif)$/i
 const clean = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
@@ -56,7 +57,7 @@ export function ArtifactsScreen({ token, projects, activeProject }: { token: str
 
   return <section className="wiki-view">
     <div className="wiki-switch">
-      <select className="ui-select" value={slug} onChange={e => setSlug(e.target.value)}>{projects.map(p => <option key={p.slug} value={p.slug}>{clean(p.name)}</option>)}</select>
+      <Dropdown value={slug} onChange={setSlug} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
       <span className="wiki-hint">Files in <code>artifacts/</code></span>
     </div>
     <div className="wiki-files">
