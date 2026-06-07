@@ -82,7 +82,7 @@ Important bug found and fixed: the first implementation recursively set a defaul
 From repo root:
 
 ```bash
-cd /home/kuya/projects/hive-os
+cd /path/to/hive-os
 
 sudo ./infra/scripts/hiveosctl init-workspace /srv/hive-os-demo --owner kuya
 sudo ./infra/scripts/hiveosctl --root /srv/hive-os-demo create-project deltapack --owner aris

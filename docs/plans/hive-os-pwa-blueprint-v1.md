@@ -12,7 +12,7 @@
 
 ## Locked decisions
 
-1. Source repo: `/home/kuya/projects/hive-os`.
+1. Source repo: `/path/to/hive-os`.
 2. Runtime mock workspace: `/srv/hive-os-demo`.
 3. Initial laptop users: `kuya` as environment admin, `aris` as member/test collaborator.
 4. Project access: app ACL + POSIX ACL.
@@ -37,10 +37,10 @@
 **Objective:** Identify which Hermes Desktop UI/protocol features should be reused or adapted.
 
 **Files:**
-- Read: `/home/kuya/.hermes/hermes-agent/apps/desktop/src/main.tsx`
-- Read: `/home/kuya/.hermes/hermes-agent/apps/desktop/src/hermes.ts`
-- Read: `/home/kuya/.hermes/hermes-agent/apps/desktop/electron/main.cjs`
-- Read: `/home/kuya/.hermes/hermes-agent/apps/desktop/electron/preload.cjs`
+- Read: `~/.hermes/hermes-agent/apps/desktop/src/main.tsx`
+- Read: `~/.hermes/hermes-agent/apps/desktop/src/hermes.ts`
+- Read: `~/.hermes/hermes-agent/apps/desktop/electron/main.cjs`
+- Read: `~/.hermes/hermes-agent/apps/desktop/electron/preload.cjs`
 - Create: `docs/desktop-feature-map.md`
 
 **Verification:** Document includes chat UI, streaming/backend bridge, session state, tool event handling, and what must be rewritten for PWA.
@@ -227,7 +227,7 @@ npm run build
 
 ## Safety rules
 
-- Do not modify `/home/kuya/projects` current workspaces except this repo.
+- Do not modify `~/projects` current workspaces except this repo.
 - Do not move/delete current `linc-ops` or Minarflow data.
 - Do not store real tokens/secrets in repo.
 - Do not grant `kuya` automatic project membership.

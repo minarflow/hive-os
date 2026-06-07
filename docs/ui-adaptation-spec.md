@@ -25,7 +25,7 @@ Mobile:
 Local Hermes Desktop source:
 
 ```text
-/home/kuya/.hermes/hermes-agent/apps/desktop
+~/.hermes/hermes-agent/apps/desktop
 ```
 
 Key files inspected:
@@ -42,7 +42,7 @@ apps/desktop/src/store/gateway.ts
 Existing feature map:
 
 ```text
-/home/kuya/projects/hive-os/docs/desktop-feature-map.md
+/path/to/hive-os/docs/desktop-feature-map.md
 ```
 
 ## Hermes Desktop layout map

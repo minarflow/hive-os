@@ -3,7 +3,7 @@
 This document maps useful Hermes Desktop features/patterns that Hive OS can adapt into a runner-agnostic PWA. Source inspected from local Hermes Desktop app:
 
 ```text
-/home/kuya/.hermes/hermes-agent/apps/desktop
+~/.hermes/hermes-agent/apps/desktop
 ```
 
 ## High-level finding

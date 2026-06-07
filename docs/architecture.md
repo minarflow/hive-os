@@ -28,7 +28,7 @@ User -> Agent Identity -> Runner -> Workspace/Project Context
 Source code lives in a normal repo, e.g.:
 
 ```text
-/home/kuya/projects/hive-os
+/path/to/hive-os
 ```
 
 Runtime workspace lives outside the repo, e.g.:

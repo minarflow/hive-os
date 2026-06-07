@@ -38,3 +38,7 @@ logs/
 # Local dev runtime (DB, seeded credentials, scratch projects)
 apps/api/.dev/
 .dev/
+
+# Not for public repo
+.impeccable.md
+.claude/

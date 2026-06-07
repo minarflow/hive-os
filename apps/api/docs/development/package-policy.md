@@ -9,7 +9,7 @@ Dependencies are part of the security boundary. Hive OS launches AI runners and 
 Use `uv` for Python dependencies.
 
 ```bash
-cd /home/kuya/storage/projects/hive-os/apps/api
+cd /path/to/hive-os/apps/api
 uv add <package>
 uv add --dev <package>
 ```

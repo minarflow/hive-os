@@ -13,7 +13,7 @@
 API app path:
 
 ```bash
-/home/kuya/storage/projects/hive-os/apps/api
+/path/to/hive-os/apps/api
 ```
 
 Main package:
@@ -39,7 +39,7 @@ docs/
 Use `uv`; do not hand-edit virtualenv contents.
 
 ```bash
-cd /home/kuya/storage/projects/hive-os/apps/api
+cd /path/to/hive-os/apps/api
 uv sync --dev
 ```
 
@@ -48,14 +48,14 @@ If a dependency must be added, follow [package policy](./package-policy.md).
 ## Run tests
 
 ```bash
-cd /home/kuya/storage/projects/hive-os/apps/api
+cd /path/to/hive-os/apps/api
 uv run pytest -q
 ```
 
 ## Run dev server
 
 ```bash
-cd /home/kuya/storage/projects/hive-os/apps/api
+cd /path/to/hive-os/apps/api
 uv run uvicorn hive_os_api.main:app --host 127.0.0.1 --port 8765
 ```
 
