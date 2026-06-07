@@ -1,7 +1,7 @@
 import React from 'react'
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
-import { IconNewChat, IconProjects, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts, IconTasks } from './icons'
+import { IconNewChat, IconProjects, IconClose, IconPencil, IconTrash, IconWiki, IconFile, IconTasks } from './icons'
 import { ProjectSwitcher } from './ProjectSwitcher'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
@@ -12,7 +12,7 @@ const nav: NavItem[] = [
   { id: 'chat', label: 'New Chat', icon: IconNewChat, action: 'new-chat' },
   { id: 'projects', label: 'Projects', icon: IconProjects },
   { id: 'wiki', label: 'Wiki', icon: IconWiki },
-  { id: 'artifacts', label: 'Artifacts', icon: IconArtifacts },
+  { id: 'artifacts', label: 'Files', icon: IconFile },
   { id: 'tasks', label: 'Tasks', icon: IconTasks }
 ]
 

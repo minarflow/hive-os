@@ -26,6 +26,7 @@ export function App() {
   const [user, setUser] = React.useState<User | null>(null)
   const [view, setView] = React.useState<View>('chat')
   const [pendingTask, setPendingTask] = React.useState<number | null>(null)
+  const [pendingFile, setPendingFile] = React.useState<{ slug: string; path: string } | null>(null)
   const [profiles, setProfiles] = React.useState<Profile[]>([])
   const [projects, setProjects] = React.useState<Project[]>([])
   const [sessions, setSessions] = React.useState<ChatSession[]>([])
@@ -129,6 +130,7 @@ export function App() {
       onSelectProject={project => setActiveProject(project)}
       onSelectSession={session => { setActiveSession(session); setView('chat') }}
       onOpenTask={taskId => { setPendingTask(taskId); setView('tasks') }}
+      onOpenFile={(slug, path) => { setPendingFile({ slug, path }); setView('artifacts') }}
       onSelectView={setView}
       profiles={profiles}
       projects={projects}
@@ -140,7 +142,7 @@ export function App() {
       {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={setActiveProject} onSession={setActiveSession} onRefresh={refreshAll} onNewSession={startNewSession} />}
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'wiki' && <WikiScreen token={token} projects={projects} />}
-      {view === 'artifacts' && <ArtifactsScreen token={token} projects={projects} activeProject={activeProject} />}
+      {view === 'artifacts' && <ArtifactsScreen token={token} projects={projects} activeProject={activeProject} pendingFile={pendingFile} onPendingConsumed={() => setPendingFile(null)} />}
       {view === 'tasks' && <TasksScreen token={token} projects={projects} activeProject={activeProject} pendingTaskId={pendingTask} onPendingConsumed={() => setPendingTask(null)} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}

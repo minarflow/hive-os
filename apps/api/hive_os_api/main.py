@@ -1239,6 +1239,22 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             raise HTTPException(status_code=404, detail="not a file")
         return FileResponse(str(target), filename=target.name)
 
+    @app.get("/api/preview/{token}/{slug}/{file_path:path}")
+    def project_preview(token: str, slug: str, file_path: str):
+        # Serve a project file inline for live preview (e.g. rendering a built
+        # site in an <iframe>). The token sits in the path — not a header — so the
+        # iframe AND its relative asset requests (styles.css, script.js) all carry
+        # it (same exposure as the SSE ?token= stream). Path-jailed to the project.
+        user = user_from_token_query(token)
+        root = _project_root(slug, user)
+        try:
+            target = fsapi.resolve_in_project(root, file_path)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if not target.is_file():
+            raise HTTPException(status_code=404, detail="not a file")
+        return FileResponse(str(target))  # inline (no attachment) so HTML/CSS/JS render
+
     @app.get("/api/projects/{slug}/wiki/all")
     def project_wiki_all(slug: str, user: dict[str, Any] = Depends(current_user)):
         root = _project_root(slug, user)

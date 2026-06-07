@@ -30,6 +30,7 @@ export function AppShell(props: {
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
   onOpenTask: (taskId: number) => void
+  onOpenFile: (slug: string, path: string) => void
   onSelectView: (view: View) => void
   profiles: Profile[]
   projects: Project[]
@@ -115,7 +116,7 @@ export function AppShell(props: {
       </main>
       <div className="resize-handle resize-right" style={{ right: 'var(--right-w)' }} onMouseDown={startResize('right')} role="separator" aria-label="Resize files panel" />
       {railOpen && <button aria-label="Close files" className="drawer-scrim rail-scrim" onClick={() => setRailOpen(false)} />}
-      <RightRail token={props.token} activeProfile={props.activeProfile} activeProject={props.activeProject} activeSession={props.activeSession} projects={props.projects} />
+      <RightRail token={props.token} activeProfile={props.activeProfile} activeProject={props.activeProject} activeSession={props.activeSession} projects={props.projects} onOpenFile={props.onOpenFile} />
       {searchOpen && <SearchModal token={props.token} sessions={props.sessions} projects={props.projects} onClose={() => setSearchOpen(false)} onSelectSession={props.onSelectSession} onOpenTask={props.onOpenTask} onSelectProject={props.onSelectProject} onSelectView={props.onSelectView} />}
     </div>
   )

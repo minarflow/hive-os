@@ -567,6 +567,21 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .cm-wrap .cm-scroller { font-family: var(--font-mono); }
 .cm-wrap .cm-editor.cm-focused { outline: none; }
 
+/* ── Files workspace (browse + edit + preview) ────────────────────── */
+.files-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+.files-head { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--ui-stroke-tertiary); }
+.files-hint { font-size: .8rem; }
+.files-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); }
+.files-tree { border-right: 1px solid var(--ui-stroke-secondary); background: var(--ui-bg-sidebar); position: relative; display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+.files-main { position: relative; min-width: 0; overflow: hidden; }
+.files-empty { display: grid; place-items: center; height: 100%; padding: 24px; text-align: center; }
+.file-preview { flex: 1; min-height: 0; overflow: auto; }
+.file-preview.img { display: grid; place-items: center; padding: 16px; }
+.file-preview.img img { max-width: 100%; max-height: 100%; }
+.file-preview-frame { flex: 1; min-height: 0; width: 100%; border: 0; background: #fff; }
+.file-preview.md-doc { padding: 18px 22px; }
+@media (max-width: 767px) { .files-body { display: flex; flex-direction: column; } .files-tree { max-height: 40%; } .files-main { flex: 1; } }
+
 .mobile-actions { display: flex; align-items: center; gap: 6px; }
 
 /* Bottom chat controls: text labels + clear separators */
