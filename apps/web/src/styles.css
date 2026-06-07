@@ -572,7 +572,18 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .chat-controls { gap: 14px; }
 .chat-controls .toolbar-control { gap: 8px; }
 .ctl-label { color: var(--ui-text-tertiary); font-size: .72rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.ctl-icon { display: none; color: var(--ui-text-tertiary); align-items: center; }
 .ctl-divider { width: 1px; align-self: stretch; min-height: 22px; background: var(--ui-stroke-secondary); margin: 0 4px; }
+/* Mobile: drop the text labels for icons so both dropdowns fit on one line. */
+@media (max-width: 767px) {
+  .chat-controls { gap: 8px; flex-wrap: nowrap; }
+  .chat-controls .ctl-divider { display: none; }
+  .chat-controls .ctl-label { display: none; }
+  .chat-controls .ctl-icon { display: inline-flex; }
+  .chat-controls .toolbar-control { flex: 1; min-width: 0; gap: 6px; }
+  .chat-controls .dd { flex: 1; min-width: 0; }
+  .chat-controls .dd-btn { min-width: 0; }
+}
 
 /* ── Wiki (Obsidian-like): files + graph + search ─────────────────── */
 .wiki-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }

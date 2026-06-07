@@ -6,6 +6,7 @@ import type { ChatMessage, ChatSession, Profile, Project, RunEvent } from '../ty
 import { ChatThread } from '../components/chat/ChatThread'
 import { Composer } from '../components/chat/Composer'
 import { Dropdown } from '../components/ui/Dropdown'
+import { IconProjects, IconAgents } from '../components/shell/icons'
 import { notify } from '../lib/notify'
 
 const cleanName = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
@@ -112,12 +113,12 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
   }
 
   const controls = <div className="chat-controls">
-    <label className="toolbar-control"><span className="ctl-label">Projects</span>
+    <label className="toolbar-control"><span className="ctl-icon" title="Project"><IconProjects size={15} /></span><span className="ctl-label">Projects</span>
       <Dropdown value={props.activeProject?.slug || ''} onChange={slug => { if (!slug) return props.onActiveProject(null); const p = props.projects.find(project => project.slug === slug); if (p) props.onActiveProject(p) }}
         options={[{ value: '', label: 'No project' }, ...props.projects.map(p => ({ value: p.slug, label: cleanName(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))]} />
     </label>
     <span className="ctl-divider" />
-    <label className="toolbar-control"><span className="ctl-label">Agents</span>
+    <label className="toolbar-control"><span className="ctl-icon" title="Agent"><IconAgents size={15} /></span><span className="ctl-label">Agents</span>
       <Dropdown value={String(props.activeProfile?.id || '')} onChange={id => { const p = props.profiles.find(profile => profile.id === Number(id)); if (p) props.onActiveProfile(p) }}
         options={props.profiles.map(p => ({ value: String(p.id), label: p.name }))} />
     </label>
