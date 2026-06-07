@@ -80,6 +80,19 @@ def test_detect_runners_uses_hive_registry_and_controlled_path(tmp_path: Path):
     assert result["aider"]["runnable"] is False
 
 
+def test_detect_endpoint_includes_hermes_status(tmp_path):
+    app = create_app({
+        "database_path": str(tmp_path / "h.db"),
+        "workspace_root": str(tmp_path / "rt"),
+        "seed_users": [{"username": "kuya", "os_user": "kuya", "role": "environment_admin"}],
+    })
+    api = TestClient(app)
+    tok = api.post("/auth/login", json={"username": "kuya", "password": "password123"}).json()["token"]
+    body = api.get("/api/runners/detect", headers={"Authorization": f"Bearer {tok}"}).json()
+    assert "hermes" in body
+    assert set(["ready", "binary", "home", "guidance"]).issubset(body["hermes"].keys())
+
+
 def test_runners_detect_endpoint_requires_login(tmp_path: Path):
     app = create_app(
         {

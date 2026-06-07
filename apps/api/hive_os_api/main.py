@@ -20,7 +20,7 @@ from pydantic import BaseModel, Field
 from .auth import expiry, hash_password, hash_token, iso_now, new_token, verify_password
 from .commands import command_catalog, execute_command
 from .db import connect, init_db
-from .runners import augmented_path, detect_runners
+from .runners import augmented_path, detect_runners, hermes_status
 from .acp import AcpManager
 from .apprunner import AppManager
 from .profile_seed import seed_hermes_home
@@ -1093,7 +1093,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                 runner["runnable"] = False
                 runner["detectionOnly"] = True
                 runner["notes"] = "Future adapter; Hive OS Team Mode is Hermes-first."
-        return {"user": user["username"], "runners": runners}
+        return {
+            "user": user["username"],
+            "runners": runners,
+            "hermes": hermes_status(source_home=cfg.get("source_hermes_home"), path_env=None),
+        }
 
     @app.get("/api/commands/catalog")
     def commands_catalog(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:

@@ -48,6 +48,8 @@ app = create_app(
         "manage_os_acl": env_bool("HIVEOS_MANAGE_OS_ACL", False),
         "web_dist_path": str(web_dist),
         "public_base_url": os.environ.get("HIVEOS_PUBLIC_BASE_URL") or None,
+        "source_hermes_home": os.environ.get("HIVEOS_SOURCE_HERMES_HOME") or None,
+        "hermes_bin": os.environ.get("HIVEOS_HERMES_BIN") or None,
         "run_timeout_seconds": env_int("HIVEOS_RUN_TIMEOUT_SECONDS", 900),
         "run_worker_poll_interval_ms": env_int("HIVEOS_RUN_WORKER_POLL_MS", 250),
         "seed_users": [],

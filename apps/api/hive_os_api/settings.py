@@ -19,6 +19,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "manage_os_acl": False,
     "hermes_profiles_root": None,
     "source_hermes_home": None,
+    "hermes_bin": None,
     "run_worker_poll_interval_ms": 250,
     "run_timeout_seconds": 900,
     "auth_token_ttl_hours": 24 * 14,
