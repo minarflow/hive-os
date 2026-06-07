@@ -3,7 +3,7 @@ import type { ChatSession, Profile, Project, User, View } from '../../types'
 import { Sidebar } from './Sidebar'
 import { MobileTopbar } from './MobileTopbar'
 import { RightRail } from './RightRail'
-import { IconPanelRight } from './icons'
+import { IconPanelRight, IconPanelLeft, IconGear } from './icons'
 
 const matches = (query: string) => typeof window !== 'undefined' && window.matchMedia(query).matches
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
@@ -38,15 +38,19 @@ export function AppShell(props: {
 }) {
   const [drawerOpen, setDrawerOpen] = React.useState(false)
   const [railOpen, setRailOpen] = React.useState(false)
+  const [menuOpen, setMenuOpen] = React.useState(false)
   const [leftWidth, setLeftWidth] = React.useState(() => stored('hive.leftWidth', 294))
   const [rightWidth, setRightWidth] = React.useState(() => stored('hive.rightWidth', 292))
   const [rightHidden, setRightHidden] = React.useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('hive.rightHidden') === '1'))
+  const [leftCollapsed, setLeftCollapsed] = React.useState(() => (typeof localStorage !== 'undefined' && localStorage.getItem('hive.leftCollapsed') === '1'))
 
   React.useEffect(() => { localStorage.setItem('hive.leftWidth', String(leftWidth)) }, [leftWidth])
   React.useEffect(() => { localStorage.setItem('hive.rightWidth', String(rightWidth)) }, [rightWidth])
   React.useEffect(() => { localStorage.setItem('hive.rightHidden', rightHidden ? '1' : '0') }, [rightHidden])
+  React.useEffect(() => { localStorage.setItem('hive.leftCollapsed', leftCollapsed ? '1' : '0') }, [leftCollapsed])
 
   const toggleRight = () => { if (matches('(min-width: 1280px)')) setRightHidden(v => !v); else setRailOpen(v => !v) }
+  const toggleLeft = () => { if (matches('(min-width: 768px)')) setLeftCollapsed(v => !v); else setDrawerOpen(v => !v) }
 
   function startResize(side: 'left' | 'right') {
     return (event: React.MouseEvent) => {
@@ -72,12 +76,28 @@ export function AppShell(props: {
   }
 
   const shellStyle = {
-    ['--left-w']: `${leftWidth}px`,
+    ['--left-w']: leftCollapsed ? '58px' : `${leftWidth}px`,
     ['--right-w']: `${rightHidden ? 0 : rightWidth}px`,
   } as React.CSSProperties
 
   return (
-    <div className={`app-shell ${railOpen ? 'rail-open' : ''} ${rightHidden ? 'right-hidden' : ''}`} style={shellStyle}>
+    <div className={`app-shell ${railOpen ? 'rail-open' : ''} ${rightHidden ? 'right-hidden' : ''} ${leftCollapsed ? 'left-rail' : ''}`} style={shellStyle}>
+      <header className="top-bar">
+        <button className="tool-btn" onClick={toggleLeft} aria-label="Toggle sidebar" title={leftCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}><IconPanelLeft size={17} /></button>
+        <span className="top-bar-spacer" />
+        <button className={`tool-btn ${!rightHidden ? 'active' : ''}`} onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel"><IconPanelRight size={17} /></button>
+        <div className="user-menu-wrap">
+          <button className={`tool-btn user-avatar-btn ${menuOpen ? 'active' : ''}`} onClick={() => setMenuOpen(o => !o)} aria-label="Account" title={props.user.username}><span className="avatar xs">{props.user.username[0]?.toUpperCase()}</span></button>
+          {menuOpen && <>
+            <button className="menu-scrim" aria-label="Close menu" onClick={() => setMenuOpen(false)} />
+            <div className="user-menu" role="menu">
+              <div className="user-menu-head"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div></div>
+              <button className="user-menu-item" onClick={() => { props.onSelectView('settings'); setMenuOpen(false) }}><IconGear size={15} /> Settings</button>
+              <button className="user-menu-item danger" onClick={() => { setMenuOpen(false); props.onLogout() }}>Logout</button>
+            </div>
+          </>}
+        </div>
+      </header>
       <MobileTopbar activeProfile={props.activeProfile} activeProject={props.activeProject} onMenu={() => setDrawerOpen(true)} onNewChat={() => props.onSelectView('chat')} onFiles={toggleRight} />
       <aside className={`sidebar ${drawerOpen ? 'is-open' : ''}`}>
         <Sidebar {...props} onClose={() => setDrawerOpen(false)} />
@@ -85,7 +105,6 @@ export function AppShell(props: {
       <div className="resize-handle resize-left" style={{ left: 'var(--left-w)' }} onMouseDown={startResize('left')} role="separator" aria-label="Resize sidebar" />
       {drawerOpen && <button aria-label="Close menu" className="drawer-scrim" onClick={() => setDrawerOpen(false)} />}
       <main className="main-pane">
-        <button className="rail-fab" onClick={toggleRight} aria-label="Toggle files panel" title="Toggle files panel"><IconPanelRight size={18} /></button>
         {props.children}
       </main>
       <div className="resize-handle resize-right" style={{ right: 'var(--right-w)' }} onMouseDown={startResize('right')} role="separator" aria-label="Resize files panel" />

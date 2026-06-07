@@ -7,5 +7,5 @@ export type TaskStatus = 'todo' | 'doing' | 'review' | 'done'
 export type Task = { id: number; project_slug: string | null; session_id: number | null; title: string; description: string; status: TaskStatus; assignee: string | null; created_at: string; updated_at: string }
 export type ChatMessage = { id?: number; role: 'user' | 'system' | 'assistant' | 'error'; content: string; created_at?: string }
 export type RunEvent = { id: number; seq: number; type: string; run_id: number; session_id: number; project_id?: number | null; payload: Record<string, unknown>; created_at: string }
-export type View = 'chat' | 'projects' | 'wiki' | 'artifacts' | 'tasks' | 'linc-projects' | 'profiles' | 'runners' | 'settings' | 'users' | 'audit'
+export type View = 'chat' | 'projects' | 'wiki' | 'artifacts' | 'tasks' | 'linc-projects' | 'profiles' | 'runners' | 'settings' | 'users'
 export type FileEntry = { name: string; type: 'dir' | 'file'; size: number }

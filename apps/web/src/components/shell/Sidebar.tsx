@@ -1,7 +1,7 @@
 import React from 'react'
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
-import { IconNewChat, IconProjects, IconAgents, IconUsers, IconGear, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts, IconAudit, IconTasks } from './icons'
+import { IconNewChat, IconProjects, IconAgents, IconUsers, IconClose, IconPencil, IconTrash, IconWiki, IconArtifacts, IconTasks } from './icons'
 import { ProjectSwitcher } from './ProjectSwitcher'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
@@ -13,10 +13,9 @@ const nav: NavItem[] = [
   { id: 'artifacts', label: 'Artifacts', icon: IconArtifacts },
   { id: 'tasks', label: 'Tasks', icon: IconTasks },
   { id: 'profiles', label: 'Agents', icon: IconAgents },
-  { id: 'users', label: 'Team Users', icon: IconUsers },
-  { id: 'audit', label: 'Audit', icon: IconAudit }
+  { id: 'users', label: 'Team Users', icon: IconUsers }
 ]
-const ADMIN_ONLY = new Set<View>(['users', 'audit'])
+const ADMIN_ONLY = new Set<View>(['users'])
 
 export function Sidebar(props: {
   activeProfile: Profile | null
@@ -50,7 +49,6 @@ export function Sidebar(props: {
     })}</section>
     <section className="nav-group sidebar-projects"><p className="eyebrow">Project</p><ProjectSwitcher projects={props.projects} activeProject={props.activeProject} onSelect={p => { props.onSelectProject(p); props.onClose() }} /></section>
     <SessionGroups {...props} />
-    <div className="user-card"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div><button className={`icon-button settings-button ${props.currentView === 'settings' ? 'active' : ''}`} title="Settings" aria-label="Settings" onClick={() => { props.onSelectView('settings'); props.onClose() }}><IconGear /></button></div>
   </div>
 }
 

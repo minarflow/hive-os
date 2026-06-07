@@ -18,7 +18,6 @@ import { ProfilesScreen } from './screens/ProfilesScreen'
 import { RunnersScreen } from './screens/RunnersScreen'
 import { SettingsScreen } from './screens/SettingsScreen'
 import { UsersScreen } from './screens/UsersScreen'
-import { AuditScreen } from './screens/AuditScreen'
 
 export function App() {
   const [booting, setBooting] = React.useState(true)
@@ -145,9 +144,8 @@ export function App() {
       {view === 'tasks' && <TasksScreen token={token} projects={projects} activeProject={activeProject} pendingTaskId={pendingTask} onPendingConsumed={() => setPendingTask(null)} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
-      {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} onLogout={() => void doLogout()} />}
+      {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} />}
       {view === 'users' && <UsersScreen token={token} user={user} onRefresh={refreshAll} />}
-      {view === 'audit' && <AuditScreen token={token} user={user} />}
     </AppShell>
   )
 }
