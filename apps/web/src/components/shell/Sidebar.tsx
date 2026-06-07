@@ -1,7 +1,7 @@
 import React from 'react'
 import type { ComponentType } from 'react'
 import type { ChatSession, Profile, Project, User, View } from '../../types'
-import { IconNewChat, IconProjects, IconClose, IconPencil, IconTrash, IconWiki, IconFile, IconTasks } from './icons'
+import { IconNewChat, IconProjects, IconClose, IconPencil, IconTrash, IconWiki, IconFile, IconTasks, IconAgents, IconUsers, IconGear } from './icons'
 import { ProjectSwitcher } from './ProjectSwitcher'
 
 type NavItem = { id: View; label: string; icon: ComponentType<{ size?: number }>; action?: 'new-chat' }
@@ -49,6 +49,13 @@ export function Sidebar(props: {
     })}</section>
     <section className="nav-group sidebar-projects"><p className="eyebrow">Project</p><ProjectSwitcher projects={props.projects} activeProject={props.activeProject} onSelect={p => { props.onSelectProject(p); props.onClose() }} /></section>
     <SessionGroups {...props} />
+    <div className="sidebar-user">
+      <div className="su-id"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div></div>
+      <button className="nav-item" onClick={() => { props.onSelectView('profiles'); props.onClose() }}><span className="nav-icon"><IconAgents /></span><strong>Agents</strong></button>
+      {props.user.role === 'environment_admin' && <button className="nav-item" onClick={() => { props.onSelectView('users'); props.onClose() }}><span className="nav-icon"><IconUsers /></span><strong>Team Users</strong></button>}
+      <button className="nav-item" onClick={() => { props.onSelectView('settings'); props.onClose() }}><span className="nav-icon"><IconGear /></span><strong>Settings</strong></button>
+      <button className="nav-item su-logout" onClick={() => props.onLogout()}><strong>Logout</strong></button>
+    </div>
   </div>
 }
 

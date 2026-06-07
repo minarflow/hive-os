@@ -105,6 +105,16 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .settings-button { margin-left: auto; }
 .settings-button.active { border-color: var(--ui-accent); color: var(--ui-accent); }
 
+/* Profile/account block at the bottom of the sidebar — mobile only (desktop uses
+   the top-bar avatar menu, which is hidden on mobile). */
+.sidebar-user { display: none; }
+.su-logout strong { color: var(--ui-danger); }
+@media (max-width: 767px) {
+  .sidebar-user { display: flex; flex-direction: column; gap: 2px; margin-top: auto; border-top: 1px solid var(--ui-stroke-tertiary); padding-top: 8px; }
+  .su-id { display: flex; align-items: center; gap: 10px; padding: 6px 9px 8px; }
+  .su-id small { display: block; color: var(--ui-text-tertiary); font-size: .72rem; text-transform: capitalize; }
+}
+
 .sidebar-collapsed .sidebar-inner { align-items: center; padding-inline: 8px; }
 .sidebar-collapsed .brand-row strong,
 .sidebar-collapsed .search-pill,
@@ -278,8 +288,10 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .panel-toggle { display: inline-flex; align-items: center; justify-content: center; font-size: .95rem; }
 .rail-scrim { display: none; }
 @media (max-width: 1279px) {
-  .app-shell .right-rail { display: flex; position: fixed; top: 0; right: 0; height: 100%; width: min(360px, 86vw); transform: translateX(100%); transition: transform .2s ease; z-index: 40; box-shadow: -8px 0 24px rgba(0,0,0,.18); }
-  .app-shell.rail-open .right-rail { transform: translateX(0); }
+  /* Closed = display:none (not translated off-screen) so the fixed rail can't
+     create horizontal overflow that escapes overflow-x:hidden. */
+  .app-shell .right-rail { display: none; position: fixed; top: 0; right: 0; height: 100%; width: min(360px, 86vw); z-index: 40; box-shadow: -8px 0 24px rgba(0,0,0,.18); }
+  .app-shell.rail-open .right-rail { display: flex; }
   .app-shell.rail-open .rail-scrim { display: block; position: fixed; inset: 0; z-index: 39; background: rgba(0,0,0,.35); border: 0; }
   .rail-toggle { display: inline-flex; }
 }
