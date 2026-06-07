@@ -61,8 +61,7 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     }
     if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
     flush()
-    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void loadMessages(event.session_id); window.dispatchEvent(new CustomEvent('hive:files-changed')); if (event.type === 'run.completed') notify('Hermes selesai', 'Ada balasan baru di chat.') }
-    else if (event.type === 'message.complete') void loadMessages(event.session_id)
+    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { void loadMessages(event.session_id).then(() => setBusyRun(null)); window.dispatchEvent(new CustomEvent('hive:files-changed')); if (event.type === 'run.completed') notify('Hermes selesai', 'Ada balasan baru di chat.') }
   }, [flush, loadMessages])
 
   React.useEffect(() => () => { if (timerRef.current != null) clearTimeout(timerRef.current) }, [])

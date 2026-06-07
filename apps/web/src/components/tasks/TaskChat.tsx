@@ -37,8 +37,7 @@ export function TaskChat({ token, task, onTaskChanged }: { token: string; task: 
     if (event.type === 'message.delta') { if (timerRef.current == null) timerRef.current = window.setTimeout(flush, 33); return }
     if (timerRef.current != null) { clearTimeout(timerRef.current); timerRef.current = null }
     flush()
-    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { setBusyRun(null); void load(); window.dispatchEvent(new CustomEvent('hive:files-changed')); onTaskChanged?.(); if (event.type === 'run.completed') notify('Task selesai', `“${task.title}” siap di-review.`) }
-    else if (event.type === 'message.complete') void load()
+    if (['run.completed', 'run.failed', 'run.cancelled'].includes(event.type)) { void load().then(() => setBusyRun(null)); window.dispatchEvent(new CustomEvent('hive:files-changed')); onTaskChanged?.(); if (event.type === 'run.completed') notify('Task selesai', `“${task.title}” siap di-review.`) }
   }, [flush, load, onTaskChanged, task.title])
 
   React.useEffect(() => () => { if (timerRef.current != null) clearTimeout(timerRef.current) }, [])

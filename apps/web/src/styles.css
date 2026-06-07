@@ -348,6 +348,10 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .scroll-bottom { position: sticky; bottom: 12px; align-self: flex-end; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--ui-stroke-secondary); background: var(--ui-surface); color: var(--ui-text-secondary); font-size: 1rem; box-shadow: 0 6px 18px rgba(15,23,42,.14); cursor: pointer; }
 .scroll-bottom:hover { color: var(--ui-text-primary); }
 
+/* Live streaming text: plain (no markdown re-parse) to avoid flicker; the final
+   saved message renders full markdown. */
+.md-stream { color: var(--ui-text-secondary); line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+
 /* Markdown rendering inside assistant bubbles */
 .md { color: var(--ui-text-secondary); line-height: 1.6; }
 .md > :first-child { margin-top: 0; }
