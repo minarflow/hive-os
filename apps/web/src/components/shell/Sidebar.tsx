@@ -36,6 +36,7 @@ export function Sidebar(props: {
   seen: Record<number, string>
   user: User
 }) {
+  const [acctOpen, setAcctOpen] = React.useState(false)
   return <div className="sidebar-inner">
     <div className="sidebar-head"><div className="brand-row"><span className="brand-dot">H</span><strong>Hive OS</strong></div><div className="sidebar-actions"><button className="icon-button mobile-only" onClick={props.onClose} aria-label="Close menu"><IconClose size={18} /></button></div></div>
     <section className="nav-group">{nav.map(item => {
@@ -50,11 +51,13 @@ export function Sidebar(props: {
     <section className="nav-group sidebar-projects"><p className="eyebrow">Project</p><ProjectSwitcher projects={props.projects} activeProject={props.activeProject} onSelect={p => { props.onSelectProject(p); props.onClose() }} /></section>
     <SessionGroups {...props} />
     <div className="sidebar-user">
-      <div className="su-id"><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div></div>
-      <button className="nav-item" onClick={() => { props.onSelectView('profiles'); props.onClose() }}><span className="nav-icon"><IconAgents /></span><strong>Agents</strong></button>
-      {props.user.role === 'environment_admin' && <button className="nav-item" onClick={() => { props.onSelectView('users'); props.onClose() }}><span className="nav-icon"><IconUsers /></span><strong>Team Users</strong></button>}
-      <button className="nav-item" onClick={() => { props.onSelectView('settings'); props.onClose() }}><span className="nav-icon"><IconGear /></span><strong>Settings</strong></button>
-      <button className="nav-item su-logout" onClick={() => props.onLogout()}><strong>Logout</strong></button>
+      <button className="su-id" onClick={() => setAcctOpen(o => !o)}><span className="avatar">{props.user.username[0]?.toUpperCase()}</span><div><strong>{props.user.username}</strong><small>{props.activeProfile?.name || props.user.role}</small></div><span className={`chevron ${acctOpen ? 'open' : ''}`}>▸</span></button>
+      {acctOpen && <div className="su-menu">
+        <button className="nav-item" onClick={() => { props.onSelectView('profiles'); props.onClose() }}><span className="nav-icon"><IconAgents /></span><strong>Agents</strong></button>
+        {props.user.role === 'environment_admin' && <button className="nav-item" onClick={() => { props.onSelectView('users'); props.onClose() }}><span className="nav-icon"><IconUsers /></span><strong>Team Users</strong></button>}
+        <button className="nav-item" onClick={() => { props.onSelectView('settings'); props.onClose() }}><span className="nav-icon"><IconGear /></span><strong>Settings</strong></button>
+        <button className="nav-item su-logout" onClick={() => props.onLogout()}><strong>Logout</strong></button>
+      </div>}
     </div>
   </div>
 }

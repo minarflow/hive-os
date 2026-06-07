@@ -111,8 +111,11 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .su-logout strong { color: var(--ui-danger); }
 @media (max-width: 767px) {
   .sidebar-user { display: flex; flex-direction: column; gap: 2px; margin-top: auto; border-top: 1px solid var(--ui-stroke-tertiary); padding-top: 8px; }
-  .su-id { display: flex; align-items: center; gap: 10px; padding: 6px 9px 8px; }
+  .su-id { display: flex; align-items: center; gap: 10px; width: 100%; border: 0; background: transparent; color: inherit; border-radius: 10px; padding: 6px 9px; text-align: left; }
+  .su-id:hover { background: var(--ui-row-hover-background); }
   .su-id small { display: block; color: var(--ui-text-tertiary); font-size: .72rem; text-transform: capitalize; }
+  .su-id .chevron { margin-left: auto; color: var(--ui-text-tertiary); }
+  .su-menu { display: flex; flex-direction: column; gap: 2px; }
 }
 
 .sidebar-collapsed .sidebar-inner { align-items: center; padding-inline: 8px; }
