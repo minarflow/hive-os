@@ -93,6 +93,21 @@ def test_detect_endpoint_includes_hermes_status(tmp_path):
     assert set(["ready", "binary", "home", "guidance"]).issubset(body["hermes"].keys())
 
 
+def test_hermes_status_explicit_binary_used(tmp_path):
+    home = tmp_path / "h"; home.mkdir(); (home / "auth.json").write_text("{}")
+    exe = tmp_path / "myhermes"; exe.write_text("#!/bin/sh\nexit 0\n"); exe.chmod(0o755)
+    st = hermes_status(source_home=str(home), binary=str(exe), path_env=str(tmp_path / "empty"))
+    assert st["ready"] is True
+    assert st["binary"] == str(exe)
+
+
+def test_hermes_status_explicit_binary_missing_falls_back(tmp_path):
+    home = tmp_path / "h"; home.mkdir(); (home / "auth.json").write_text("{}")
+    st = hermes_status(source_home=str(home), binary=str(tmp_path / "nope"), path_env=str(tmp_path / "empty"))
+    assert st["ready"] is False
+    assert st["binary"] is None
+
+
 def test_runners_detect_endpoint_requires_login(tmp_path: Path):
     app = create_app(
         {

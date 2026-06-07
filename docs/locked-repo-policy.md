@@ -22,7 +22,7 @@ Examples:
 
 ```text
 /opt/hive-os
-/home/linc/hive-os/app
+/opt/hive-os/app
 /etc/hive-os
 /var/lib/hive-os/hermes-profiles
 ```

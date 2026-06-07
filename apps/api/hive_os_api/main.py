@@ -1096,7 +1096,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         return {
             "user": user["username"],
             "runners": runners,
-            "hermes": hermes_status(source_home=cfg.get("source_hermes_home"), path_env=None),
+            "hermes": hermes_status(source_home=cfg.get("source_hermes_home"), binary=cfg.get("hermes_bin"), path_env=None),
         }
 
     @app.get("/api/commands/catalog")
