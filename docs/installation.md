@@ -206,20 +206,19 @@ By default, Team Mode uses `HIVEOS_PROJECTCTL_COMMAND=/usr/bin/true`, meaning pr
 
 ## Update
 
-Each install is a clone of the public repo (`origin`), so updates are a normal
-`git pull`. Your data is **not** in the repo (DB, projects, profiles, and
-`.env` all live outside it and are git-ignored), so updates never touch it.
-
-**User-local install (the `scripts/install-user` / systemd user service path):**
+One command — pull the latest, rebuild, and restart (runs any DB migrations):
 
 ```bash
 cd hive-os
-git pull
-bash scripts/install-user      # idempotent: rebuilds + reinstalls units + restarts
+./scripts/hive-os update
 ```
 
-`install-user` re-runs the full build and restarts the service. If you prefer the
-minimal path:
+`update` detects your systemd service (user or system) and restarts it so the
+new code and migrations load. Your data is **not** in the repo (DB, projects,
+profiles, and `.env` all live outside it and are git-ignored), so updates never
+touch it; and any pending migration backs the database up first.
+
+If you'd rather do it by hand:
 
 ```bash
 git pull && bash scripts/build && systemctl --user restart hive-os

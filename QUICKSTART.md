@@ -57,6 +57,9 @@ systemctl --user restart hive-os
 
 # Stop the service
 systemctl --user stop hive-os
+
+# Update to the latest version (pull + rebuild + restart; runs DB migrations)
+./scripts/hive-os update
 ```
 
 ## 5. Where data lives
