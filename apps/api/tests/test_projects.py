@@ -197,3 +197,14 @@ def test_only_owner_can_invite_members(tmp_path: Path):
     denied = api.post("/api/projects/owned-by-aris/invite", json={"username": "kuya"}, headers=kuya)
 
     assert denied.status_code == 404
+
+
+def test_deleting_project_removes_its_task_threads(tmp_path: Path):
+    # Project delete used to only SET NULL on sessions, orphaning every thread.
+    api = client(tmp_path)
+    aris = login_headers(api, "aris")
+    api.post("/api/projects", json={"slug": "gone", "name": "Gone"}, headers=aris)
+    sid = api.post("/api/projects/gone/tasks", json={"title": "t"}, headers=aris).json()["session_id"]
+    assert any(s["id"] == sid for s in api.get("/api/sessions", headers=aris).json()["sessions"])
+    api.delete("/api/projects/gone", headers=aris)
+    assert all(s["id"] != sid for s in api.get("/api/sessions", headers=aris).json()["sessions"])

@@ -802,8 +802,11 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .kanban-col-head { display: flex; justify-content: space-between; align-items: center; font-size: .72rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ui-text-tertiary); padding: 4px 6px 10px; }
 .kanban-count { background: var(--ui-stroke-tertiary); color: var(--ui-text-secondary); border-radius: 999px; padding: 0 7px; font-size: .72rem; }
 .kanban-cards { display: grid; gap: 8px; }
-.kanban-card { display: grid; gap: 4px; text-align: left; border: 1px solid var(--ui-stroke-tertiary); border-radius: 10px; background: var(--ui-surface); padding: 10px 11px; }
+.kanban-card { position: relative; display: grid; gap: 4px; text-align: left; border: 1px solid var(--ui-stroke-tertiary); border-radius: 10px; background: var(--ui-surface); padding: 10px 11px; cursor: pointer; }
 .kanban-card:hover { border-color: var(--ui-accent); }
+.kanban-del { position: absolute; top: 4px; right: 4px; width: 20px; height: 20px; line-height: 1; border: 0; border-radius: 6px; background: transparent; color: var(--ui-text-tertiary); font-size: 1rem; cursor: pointer; opacity: 0; }
+.kanban-card:hover .kanban-del { opacity: 1; }
+.kanban-del:hover { background: color-mix(in srgb, #c0392b 14%, transparent); color: #c0392b; }
 .kanban-card strong { font-size: .88rem; font-weight: 600; }
 .kanban-card small { color: var(--ui-text-tertiary); font-size: .75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

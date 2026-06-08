@@ -29,6 +29,7 @@ export function Sidebar(props: {
   onSelectProject: (project: Project) => void
   onSelectSession: (session: ChatSession) => void
   onOpenTask: (taskId: number) => void
+  onDeleteTask: (taskId: number) => void
   onSelectView: (view: View) => void
   profiles: Profile[]
   projects: Project[]
@@ -66,6 +67,7 @@ type GroupProps = {
   sessions: ChatSession[]; activeSession: ChatSession | null; onClose: () => void
   onSelectSession: (s: ChatSession) => void; onRenameSession: (id: number, t: string) => void
   onDeleteSession: (id: number) => void; onOpenTask: (taskId: number) => void
+  onDeleteTask: (taskId: number) => void
   seen: Record<number, string>
 }
 
@@ -98,6 +100,9 @@ function SessionGroups(props: GroupProps) {
       <button className="group-toggle" onClick={toggleTasks}><span><span className={`chevron ${openTasks ? 'open' : ''}`}>▸</span> Tasks</span><span>{taskThreads.length}</span></button>
       {openTasks && taskThreads.slice(0, 30).map(session => <div className="project-row session-row" key={session.id} title="Open task">
         <button className="row-main" onClick={() => { props.onOpenTask(session.task_id as number); props.onClose() }}><span className={`status-dot ${isUnread(session, props.seen) ? 'unread' : ''}`} /><strong>{session.task_title || session.title}</strong></button>
+        <span className="row-actions">
+          <button className="row-action danger" title="Delete task" aria-label="Delete task" onClick={e => { e.stopPropagation(); if (window.confirm(`Delete task "${session.task_title || session.title}"? Its thread will be removed too.`)) props.onDeleteTask(session.task_id as number) }}><IconTrash size={15} /></button>
+        </span>
       </div>)}
     </section>}
   </>

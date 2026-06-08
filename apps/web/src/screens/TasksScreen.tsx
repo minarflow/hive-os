@@ -101,11 +101,12 @@ export function TasksScreen({ token, projects, activeProject, onActiveProject, p
       const items = tasks.filter(t => t.status === col.key)
       return <div className="kanban-col" key={col.key}>
         <div className="kanban-col-head"><span>{col.label}</span><span className="kanban-count">{items.length}</span></div>
-        <div className="kanban-cards">{items.map(t => <button className="kanban-card" key={t.id} onClick={() => setSelected(t)}>
+        <div className="kanban-cards">{items.map(t => <div className="kanban-card" key={t.id} role="button" tabIndex={0} onClick={() => setSelected(t)} onKeyDown={e => { if (e.key === 'Enter') setSelected(t) }}>
+          <button className="kanban-del" title="Delete task" aria-label="Delete task" onClick={e => { e.stopPropagation(); void remove(t) }}>×</button>
           <strong>{t.title}</strong>
           {(t.assignee || t.description) && <small>{t.assignee || t.description.slice(0, 60)}</small>}
           {t.created_by && <small className="kanban-by">by {t.created_by}</small>}
-        </button>)}</div>
+        </div>)}</div>
       </div>
     })}</div>
   </section>

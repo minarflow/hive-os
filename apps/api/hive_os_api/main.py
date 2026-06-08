@@ -914,6 +914,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
                     __import__("shutil").rmtree(rp)
             except Exception:
                 logging.getLogger("hive_os.projects").exception("project dir removal failed for %s", project.get("slug"))
+        # Sessions only SET NULL on project delete, which would orphan every chat
+        # and task thread. Delete them first so messages/events/runs/agent_sessions
+        # cascade away cleanly.
+        db().execute("DELETE FROM sessions WHERE project_id = ?", (project["id"],))
         db().execute("DELETE FROM projects WHERE id = ?", (project["id"],))
 
     @app.patch("/api/users/{user_id}")

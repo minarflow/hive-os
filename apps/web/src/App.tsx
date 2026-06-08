@@ -3,6 +3,7 @@ import { getSetupStatus, logout, me } from './api/auth'
 import { listProfiles } from './api/profiles'
 import { listProjects } from './api/projects'
 import { listSessions, createSession, renameSession, deleteSession } from './api/sessions'
+import { deleteTask } from './api/tasks'
 import { api } from './api/client'
 import type { ChatSession, Profile, Project, Runner, User, View } from './types'
 import { AppShell } from './components/shell/AppShell'
@@ -159,6 +160,7 @@ export function App() {
       onSelectProject={project => setActiveProject(project)}
       onSelectSession={session => { setActiveSession(session); markSeen(session.id, session.updated_at); setView('chat') }}
       onOpenTask={taskId => { setPendingTask(taskId); setView('tasks'); const s = sessions.find(x => x.task_id === taskId); if (s) markSeen(s.id, s.updated_at) }}
+      onDeleteTask={async taskId => { try { await deleteTask(token, taskId); await refreshAll(token) } catch { /* ignore */ } }}
       seen={seen}
       onOpenFile={(slug, path) => { setPendingFile({ slug, path }); setView('artifacts') }}
       onSelectView={setView}
