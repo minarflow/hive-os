@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS profiles (
   slug TEXT NOT NULL,
   name TEXT NOT NULL,
   hermes_home TEXT NOT NULL,
+  runner_id TEXT NOT NULL DEFAULT 'hermes',
   default_model TEXT,
   is_default INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -186,6 +187,7 @@ def migrate_existing(conn: sqlite3.Connection) -> None:
     _add_column(conn, "sessions", "acp_session_id", "acp_session_id TEXT")
     _add_column(conn, "sessions", "task_id", "task_id INTEGER")
     _add_column(conn, "runs", "heartbeat_at", "heartbeat_at TEXT")
+    _add_column(conn, "profiles", "runner_id", "runner_id TEXT NOT NULL DEFAULT 'hermes'")
 
 
 def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = None, hermes_home_factory: Any | None = None, source_hermes_home: str | None = None) -> None:

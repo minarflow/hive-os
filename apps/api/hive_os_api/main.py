@@ -25,7 +25,7 @@ from .runners import augmented_path, detect_runners, hermes_status
 from .acp import AcpManager
 from .apprunner import AppManager
 from .profile_seed import refresh_hermes_credentials, seed_hermes_home
-from .runner_specs import runner_spec
+from .runner_specs import RUNNER_SPECS, runner_spec
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 from . import fsapi
@@ -151,6 +151,7 @@ class ProfileCreateRequest(BaseModel):
     slug: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$")
     name: str
     default_model: str | None = None
+    runner_id: str = "hermes"
 
 
 class ProfileUpdateRequest(BaseModel):
@@ -657,7 +658,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         )
         return token
 
-    def create_profile_for(user: dict[str, Any], slug: str, name: str, default_model: str | None = None, is_default: bool = False) -> dict[str, Any]:
+    def create_profile_for(user: dict[str, Any], slug: str, name: str, default_model: str | None = None, is_default: bool = False, runner_id: str = "hermes") -> dict[str, Any]:
         slug = validate_slug(slug)
         home = hermes_home_for(cfg, user["username"], slug)
         home.mkdir(parents=True, exist_ok=True)
@@ -665,8 +666,8 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         if is_default:
             db().execute("UPDATE profiles SET is_default = 0 WHERE user_id = ?", (user["id"],))
         cur = db().execute(
-            "INSERT INTO profiles(user_id, slug, name, hermes_home, default_model, is_default) VALUES (?, ?, ?, ?, ?, ?)",
-            (user["id"], slug, name, str(home), default_model, 1 if is_default else 0),
+            "INSERT INTO profiles(user_id, slug, name, hermes_home, runner_id, default_model, is_default) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user["id"], slug, name, str(home), runner_id, default_model, 1 if is_default else 0),
         )
         return dict(db().execute("SELECT * FROM profiles WHERE id = ?", (cur.lastrowid,)).fetchone())
 
@@ -744,7 +745,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         return {"slug": row["slug"], "name": row["name"], "path": row["path"], "owner": row.get("owner"), "role": row.get("role"), "visibility": row.get("visibility", "private")}
 
     def profile_payload(row: dict[str, Any]) -> dict[str, Any]:
-        return {"id": row["id"], "slug": row["slug"], "name": row["name"], "default_model": row["default_model"], "is_default": bool(row["is_default"]), "hermes_home": row["hermes_home"]}
+        return {"id": row["id"], "slug": row["slug"], "name": row["name"], "runner_id": row["runner_id"], "default_model": row["default_model"], "is_default": bool(row["is_default"]), "hermes_home": row["hermes_home"]}
 
     def session_payload(row: dict[str, Any]) -> dict[str, Any]:
         return {"id": row["id"], "title": row["title"], "runner_id": row["runner_id"], "profile_id": row["profile_id"], "profile_slug": row.get("profile_slug"), "profile_name": row.get("profile_name"), "project_slug": row.get("project_slug"), "project_name": row.get("project_name"), "visibility": row["visibility"], "updated_at": row["updated_at"], "task_id": row.get("task_id"), "task_title": row.get("task_title")}
@@ -1115,8 +1116,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @app.post("/api/profiles", status_code=201)
     def create_profile(payload: ProfileCreateRequest, user: dict[str, Any] = Depends(current_user)):
+        if payload.runner_id not in RUNNER_SPECS:
+            raise HTTPException(status_code=400, detail="unknown runner")
         try:
-            profile = create_profile_for(user, payload.slug, payload.name, payload.default_model)
+            profile = create_profile_for(user, payload.slug, payload.name, payload.default_model, runner_id=payload.runner_id)
         except sqlite3.IntegrityError:
             raise HTTPException(status_code=409, detail="profile slug already exists") from None
         return profile_payload(profile)
@@ -1626,12 +1629,12 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         cur = db().execute(
             """
             INSERT INTO runs(session_id, project_id, user_id, profile_id, runner_id, status, prompt, model, hermes_home)
-            VALUES (?, ?, ?, ?, 'hermes', 'queued', ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)
             """,
-            (session_id, session["project_id"], user["id"], profile["id"], payload.message, payload.model or profile["default_model"], profile["hermes_home"]),
+            (session_id, session["project_id"], user["id"], profile["id"], profile["runner_id"], payload.message, payload.model or profile["default_model"], profile["hermes_home"]),
         )
         run_id = int(cur.lastrowid)
-        app.state.worker.add_event(run_id, session_id, session["project_id"], "run.queued", {"runner": "hermes"})
+        app.state.worker.add_event(run_id, session_id, session["project_id"], "run.queued", {"runner": profile["runner_id"]})
         db().execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
         if session.get("task_id"):
             db().execute("UPDATE tasks SET status = 'doing', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'done'", (session["task_id"],))

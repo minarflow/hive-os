@@ -33,9 +33,16 @@ def _add_messages_author(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE messages ADD COLUMN author TEXT")
 
 
+def _add_profiles_runner_id(conn: sqlite3.Connection) -> None:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(profiles)").fetchall()}
+    if "runner_id" not in cols:
+        conn.execute("ALTER TABLE profiles ADD COLUMN runner_id TEXT NOT NULL DEFAULT 'hermes'")
+
+
 # Ordered list of versioned migrations. Append future schema/data changes here.
 MIGRATIONS: list[Migration] = [
     (1, "add messages.author (chat sender / agent name)", _add_messages_author),
+    (2, "add profiles.runner_id", _add_profiles_runner_id),
 ]
 
 
