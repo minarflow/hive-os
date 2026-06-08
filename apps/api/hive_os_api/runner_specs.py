@@ -30,6 +30,14 @@ RUNNER_SPECS: dict[str, RunnerSpec] = {
         display_name="Claude Code",
         auth_hint="Install Claude Code and run `claude /login` (or set ANTHROPIC_API_KEY).",
     ),
+    "codex": RunnerSpec(
+        id="codex",
+        spawn_argv=["npx", "-y", "@zed-industries/codex-acp"],
+        home_env="CODEX_HOME",
+        binary="codex",
+        display_name="Codex",
+        auth_hint="Install the Codex CLI and run `codex login` (or set OPENAI_API_KEY).",
+    ),
 }
 
 DEFAULT_RUNNER = "hermes"

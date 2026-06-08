@@ -20,3 +20,11 @@ def test_unknown_runner_falls_back_to_hermes():
 
 def test_registry_has_expected_runners():
     assert set(["hermes", "claude-code"]).issubset(RUNNER_SPECS.keys())
+
+
+def test_codex_spec():
+    from hive_os_api.runner_specs import runner_spec
+    s = runner_spec("codex")
+    assert "codex-acp" in " ".join(s.spawn_argv)
+    assert s.home_env == "CODEX_HOME"
+    assert s.binary == "codex"
