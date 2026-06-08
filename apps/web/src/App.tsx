@@ -174,7 +174,7 @@ export function App() {
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'wiki' && <WikiScreen token={token} projects={projects} />}
       {view === 'artifacts' && <ArtifactsScreen token={token} projects={projects} activeProject={activeProject} pendingFile={pendingFile} onPendingConsumed={() => setPendingFile(null)} />}
-      {view === 'tasks' && <TasksScreen token={token} projects={projects} activeProject={activeProject} pendingTaskId={pendingTask} onPendingConsumed={() => setPendingTask(null)} />}
+      {view === 'tasks' && <TasksScreen token={token} projects={projects} activeProject={activeProject} onActiveProject={setActiveProject} pendingTaskId={pendingTask} onPendingConsumed={() => setPendingTask(null)} />}
       {view === 'profiles' && <ProfilesScreen token={token} profiles={profiles} onActiveProfile={setActiveProfile} onRefresh={refreshAll} />}
       {view === 'runners' && <RunnersScreen runners={runners} token={token} onRefresh={refreshAll} />}
       {view === 'settings' && <SettingsScreen token={token} user={user} profiles={profiles} projects={projects} />}

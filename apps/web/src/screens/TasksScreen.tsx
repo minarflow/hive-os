@@ -33,7 +33,7 @@ function TaskDetail({ token, task, onBack, onStatus, onDelete, onTaskChanged }: 
   </div>
 }
 
-export function TasksScreen({ token, projects, activeProject, pendingTaskId, onPendingConsumed }: { token: string; projects: Project[]; activeProject: Project | null; pendingTaskId?: number | null; onPendingConsumed?: () => void }) {
+export function TasksScreen({ token, projects, activeProject, onActiveProject, pendingTaskId, onPendingConsumed }: { token: string; projects: Project[]; activeProject: Project | null; onActiveProject?: (p: Project) => void; pendingTaskId?: number | null; onPendingConsumed?: () => void }) {
   const [slug, setSlug] = React.useState(activeProject?.slug || projects[0]?.slug || '')
   const [tasks, setTasks] = React.useState<Task[]>([])
   const [selected, setSelected] = React.useState<Task | null>(null)
@@ -41,6 +41,11 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
   const [form, setForm] = React.useState({ title: '', description: '', assignee: '' })
   const [error, setError] = React.useState('')
   const project = projects.find(p => p.slug === slug) || null
+  // Follow the global active project (sidebar) so the board, sidebar, and file
+  // panel always show the same project.
+  React.useEffect(() => { if (activeProject && activeProject.slug !== slug) setSlug(activeProject.slug) }, [activeProject?.slug])
+  // Picking a project here updates the global active project too (two-way sync).
+  const pickProject = (s: string) => { setSlug(s); const p = projects.find(x => x.slug === s); if (p) onActiveProject?.(p) }
 
   const reload = React.useCallback(async () => {
     if (!project) { setTasks([]); return }
@@ -52,7 +57,7 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
   // Open a specific task when navigated from the sidebar.
   React.useEffect(() => {
     if (!pendingTaskId) return
-    getTask(token, pendingTaskId).then(t => { if (t.project_slug) setSlug(t.project_slug); setSelected(t) }).catch(e => setError(String(e))).finally(() => onPendingConsumed?.())
+    getTask(token, pendingTaskId).then(t => { if (t.project_slug) pickProject(t.project_slug); setSelected(t) }).catch(e => setError(String(e))).finally(() => onPendingConsumed?.())
   }, [pendingTaskId])
 
   async function submitCreate(e: React.FormEvent) {
@@ -81,7 +86,7 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
 
   return <section className="tasks-view">
     <div className="tasks-head">
-      <Dropdown value={slug} onChange={setSlug} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
+      <Dropdown value={slug} onChange={pickProject} minWidth={200} options={projects.map(p => ({ value: p.slug, label: clean(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))} />
       <button className="primary-button" onClick={() => setCreating(true)}>New task</button>
     </div>
     {creating && <div className="modal-scrim" onClick={() => setCreating(false)}><form className="modal-card" onClick={e => e.stopPropagation()} onSubmit={submitCreate}>
