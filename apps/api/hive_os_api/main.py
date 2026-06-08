@@ -430,7 +430,7 @@ class RunWorker:
             # creation goes stale when the host rotates its OAuth token, which
             # shows up as the agent producing "no output". Refresh from the live
             # source before each run so shared-account profiles keep working.
-            if hermes_home:
+            if hermes_home and cfg.get("refresh_credentials", True):
                 try:
                     src = cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")
                     changed = refresh_hermes_credentials(Path(src), Path(hermes_home))

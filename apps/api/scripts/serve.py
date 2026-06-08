@@ -50,6 +50,7 @@ app = create_app(
         "public_base_url": os.environ.get("HIVEOS_PUBLIC_BASE_URL") or None,
         "source_hermes_home": os.environ.get("HIVEOS_SOURCE_HERMES_HOME") or None,
         "hermes_bin": os.environ.get("HIVEOS_HERMES_BIN") or None,
+        "refresh_credentials": env_bool("HIVEOS_REFRESH_CREDENTIALS", True),
         "run_timeout_seconds": env_int("HIVEOS_RUN_TIMEOUT_SECONDS", 900),
         "run_worker_poll_interval_ms": env_int("HIVEOS_RUN_WORKER_POLL_MS", 250),
         "seed_users": [],
