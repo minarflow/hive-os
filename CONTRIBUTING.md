@@ -53,6 +53,27 @@ Prompts, project files, artifacts, and runner output are untrusted input. Prompt
 **Small, testable modules with clear interfaces.**
 Prefer splitting logic into small functions/modules. Avoid large, entangled files.
 
+## Database changes
+
+The baseline schema lives in `apps/api/hive_os_api/db.py` (`SCHEMA` +
+`migrate_existing` for idempotent column adds). For anything beyond a simple
+additive column — data backfills, multi-step changes — add a **versioned
+migration** in `apps/api/hive_os_api/migrations.py`:
+
+```python
+def _add_projects_color(conn):
+    conn.execute("ALTER TABLE projects ADD COLUMN color TEXT")
+
+MIGRATIONS = [
+    (1, "add projects.color", _add_projects_color),
+]
+```
+
+Rules: append with the next integer version, never edit/renumber an existing
+entry, and prefer additive changes. Migrations run once each on startup, in
+order, and the database is snapshotted to `<data dir>/backups/` before any
+pending migration is applied. Add a test in `tests/test_migrations.py`.
+
 ## Commit style
 
 Use [Conventional Commits](https://www.conventionalcommits.org/):

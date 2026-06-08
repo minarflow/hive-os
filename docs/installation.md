@@ -234,11 +234,12 @@ sudo bash scripts/build
 sudo systemctl restart hive-os
 ```
 
-> **Database schema note.** Hive creates missing tables automatically but does
-> **not** yet run column migrations. Additive updates (new tables) upgrade
-> cleanly; an update that changes an existing table's columns needs a migration
-> step — back up the DB (`bash scripts/backup`) before updating, and watch the
-> release notes for any migration instructions.
+> **Database migrations.** Updates run versioned migrations automatically on
+> startup, and the database is **backed up first** — a consistent snapshot is
+> written to `<data dir>/backups/` before any pending migration is applied, so
+> your data is never dropped and is always recoverable. Additive schema changes
+> carry over without manual steps. (`bash scripts/backup` remains available for
+> an on-demand backup any time.)
 
 If you made local edits to tracked files, `git pull` may conflict — keep changes
 in your `.env` / config (outside the repo) rather than editing source.

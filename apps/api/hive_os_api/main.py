@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from .auth import expiry, hash_password, hash_token, iso_now, new_token, verify_password
 from .commands import command_catalog, execute_command
 from .db import connect, init_db
+from .migrations import run_migrations
 from .runners import augmented_path, detect_runners, hermes_status
 from .acp import AcpManager
 from .apprunner import AppManager
@@ -538,6 +539,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     app.state.db = connect(cfg["database_path"])
     app.state.db_lock = __import__("threading").RLock()
     init_db(app.state.db, cfg.get("seed_users") or [], lambda username, slug: hermes_home_for(cfg, username, slug), source_hermes_home=cfg.get("source_hermes_home"))
+    run_migrations(app.state.db, cfg.get("database_path"))  # versioned migrations (backs up before applying)
     app.state.worker_db = connect(cfg["database_path"])  # dedicated connection for the async run worker
     app.state.worker = RunWorker(app)
     app.state.acp_manager = AcpManager()
