@@ -1,5 +1,5 @@
 export type User = { id: number; username: string; role: string; os_user: string }
-export type Profile = { id: number; slug: string; name: string; default_model?: string | null; is_default: boolean; hermes_home?: string }
+export type Profile = { id: number; slug: string; name: string; default_model?: string | null; is_default: boolean; hermes_home?: string; runner_id?: string }
 export type Project = { slug: string; name: string; path: string; owner: string; role: string; visibility: 'private' | 'shared' }
 export type Runner = { id: string; displayName: string; installed: boolean; path?: string | null; binary?: string | null; hasAdapter: boolean; detectionOnly: boolean; runnable: boolean; notes?: string }
 export type ChatSession = { id: number; title: string; runner_id: string; profile_id?: number | null; profile_slug?: string | null; profile_name?: string | null; project_slug?: string | null; project_name?: string | null; visibility: 'private' | 'project'; updated_at?: string; task_id?: number | null; task_title?: string | null }
