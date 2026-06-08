@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+from collections import deque
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
@@ -52,9 +53,18 @@ class AcpProcess:
         self._pending: dict[int, asyncio.Future] = {}
         self._handlers: dict[str, UpdateHandler] = {}   # sessionId -> update handler
         self._reader: asyncio.Task | None = None
+        self._stderr_reader: asyncio.Task | None = None
+        self._stderr_lines: deque[str] = deque(maxlen=60)
         self._lock = asyncio.Lock()
         self._started = False
         self.config_sig: tuple = ()
+
+    def recent_stderr(self, lines: int = 15, max_chars: int = 1500) -> str:
+        """Last few stderr lines from the agent process — the real error behind
+        an empty/failed run (auth, rate limit, etc.), otherwise lost."""
+        tail = [ln for ln in self._stderr_lines if ln.strip()][-lines:]
+        text = "\n".join(tail)
+        return text[-max_chars:]
 
     async def start(self) -> None:
         if self._started:
@@ -68,9 +78,10 @@ class AcpProcess:
         self.proc = await asyncio.create_subprocess_exec(
             "hermes", "acp", "--accept-hooks",
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL, env=env, cwd=self.cwd, limit=READ_LIMIT,
+            stderr=asyncio.subprocess.PIPE, env=env, cwd=self.cwd, limit=READ_LIMIT,
         )
         self._reader = asyncio.create_task(self._read_loop())
+        self._stderr_reader = asyncio.create_task(self._read_stderr())
         await self._request("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
         self.config_sig = config_sig(self.hermes_home)
         self._started = True
@@ -98,6 +109,18 @@ class AcpProcess:
                 fut.set_exception(AcpError("hermes acp process exited"))
         self._pending.clear()
         self._started = False
+
+    async def _read_stderr(self) -> None:
+        if not self.proc or not self.proc.stderr:
+            return
+        while True:
+            try:
+                raw = await self.proc.stderr.readline()
+            except (asyncio.LimitOverrunError, ValueError):
+                continue
+            if not raw:
+                break
+            self._stderr_lines.append(raw.decode("utf-8", "replace").rstrip())
 
     def _dispatch(self, msg: dict[str, Any]) -> None:
         if "id" in msg and ("result" in msg or "error" in msg):
@@ -182,6 +205,8 @@ class AcpProcess:
     async def stop(self) -> None:
         if self._reader:
             self._reader.cancel()
+        if self._stderr_reader:
+            self._stderr_reader.cancel()
         if self.proc and self.proc.returncode is None:
             self.proc.terminate()
         self._started = False

@@ -140,6 +140,14 @@ CREATE TABLE IF NOT EXISTS app_settings (
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- An ACP session belongs to the agent HOME that created it, so a shared thread
+-- needs one ACP session PER home (per collaborator), not a single shared id.
+CREATE TABLE IF NOT EXISTS agent_sessions (
+  session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+  hermes_home TEXT NOT NULL,
+  acp_session_id TEXT NOT NULL,
+  PRIMARY KEY (session_id, hermes_home)
+);
 CREATE INDEX IF NOT EXISTS idx_sessions_owner ON sessions(owner_user_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status, id);

@@ -441,8 +441,15 @@ class RunWorker:
                 except Exception:
                     logging.getLogger("hive_os.worker").exception("hermes credential refresh failed")
             proc = await self.app.state.acp_manager.get(hermes_home, cwd)
-            srow = db.execute("SELECT acp_session_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
-            acp_sid = srow["acp_session_id"] if srow else None
+            # ACP sessions are home-specific: look up THIS home's session for the
+            # thread (each collaborator has their own). Loading another home's id
+            # silently fails on the agent side -> prompt to a missing session ->
+            # "no output". Per-home mapping avoids that.
+            arow = db.execute(
+                "SELECT acp_session_id FROM agent_sessions WHERE session_id = ? AND hermes_home = ?",
+                (session_id, hermes_home),
+            ).fetchone()
+            acp_sid = arow["acp_session_id"] if arow else None
             if acp_sid:
                 try:
                     await proc.load_session(acp_sid, cwd)
@@ -451,7 +458,10 @@ class RunWorker:
             if not acp_sid:
                 acp_sid = await proc.new_session(cwd)
                 with self.app.state.db_lock:
-                    db.execute("UPDATE sessions SET acp_session_id = ? WHERE id = ?", (acp_sid, session_id))
+                    db.execute(
+                        "INSERT OR REPLACE INTO agent_sessions(session_id, hermes_home, acp_session_id) VALUES (?, ?, ?)",
+                        (session_id, hermes_home, acp_sid),
+                    )
             self.active_runs[run_id] = (proc, acp_sid)
             hb_task = asyncio.create_task(self._heartbeat(run_id, float(cfg.get("run_heartbeat_seconds") or 10)))
             timeout = int(cfg.get("run_timeout_seconds") or 600)
@@ -460,7 +470,15 @@ class RunWorker:
             status_row = db.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()
             if status_row and status_row["status"] == "cancelled":
                 return
-            answer = "".join(chunks).strip() or "Hermes produced no output."
+            answer = "".join(chunks).strip()
+            if not answer:
+                # Empty output usually means the agent hit an error (auth, rate
+                # limit, refusal) — surface the real reason instead of a blank
+                # "no output" so it's diagnosable.
+                detail = proc.recent_stderr() if hasattr(proc, "recent_stderr") else ""
+                answer = f"Agent produced no output (stop reason: {stop_reason})."
+                if detail:
+                    answer += f"\n\nAgent error log:\n```\n{detail}\n```"
             with self.app.state.db_lock:
                 cur = db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, answer, self._agent_name(run_id)))
                 db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))

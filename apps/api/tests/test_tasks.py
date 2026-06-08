@@ -90,3 +90,48 @@ def test_collaborator_runs_in_shared_task_with_own_identity(tmp_path):
     assert r.status_code == 202, r.text  # used to 404: run resolved the creator's profile
     msgs = c.get(f"/api/sessions/{sid}/messages", headers=gh).json()["messages"]
     assert any(m["role"] == "user" and m["author"] == "george" for m in msgs)
+
+
+def test_collaborators_get_independent_agent_sessions(tmp_path):
+    # Regression: a 2nd collaborator's run reused the 1st user's ACP session id,
+    # which doesn't exist in the 2nd user's home. The adapter's load_session
+    # silently "succeeds", so the prompt hit a missing session -> "no output".
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+
+    class FakeProc:
+        def __init__(self): self.sessions = set()
+        async def load_session(self, sid, cwd): pass  # silently succeeds even if unknown (the real bug)
+        async def new_session(self, cwd):
+            sid = f"s{len(self.sessions)}"; self.sessions.add(sid); return sid
+        async def prompt(self, sid, text, on_update, timeout=600):
+            if sid not in self.sessions:
+                raise Exception(f"session {sid} not found")
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "ok"}})
+            return "end_turn"
+
+    class FakeMgr:
+        def __init__(self): self.procs = {}
+        async def get(self, home, cwd=None): return self.procs.setdefault(home or "", FakeProc())
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    oh = {"Authorization": f"Bearer {c.post('/api/setup/bootstrap', json={'username':'iqbal','password':'password123','profile_name':'I','profile_slug':'default'}).json()['token']}"}
+    c.post("/api/users", headers=oh, json={"username": "george", "password": "password123", "role": "member", "profile_name": "G", "profile_slug": "default"})
+    gh = {"Authorization": f"Bearer {c.post('/auth/login', json={'username':'george','password':'password123'}).json()['token']}"}
+    c.post("/api/projects", headers=oh, json={"slug": "team", "name": "T", "visibility": "shared"})
+    sid = c.post("/api/projects/team/tasks", headers=oh, json={"title": "x"}).json()["session_id"]
+    c.post("/api/projects/team/invite", headers=oh, json={"username": "george"})
+
+    def run_one():
+        async def go():
+            r = app.state.worker.claim_run(); assert r; await app.state.worker.execute_run(r)
+        asyncio.run(go())
+
+    c.post(f"/api/sessions/{sid}/runs", headers=oh, json={"message": "hi"}); run_one()   # iqbal (1st)
+    c.post(f"/api/sessions/{sid}/runs", headers=gh, json={"message": "hi"}); run_one()   # george (2nd)
+    asst = [m for m in c.get(f"/api/sessions/{sid}/messages", headers=gh).json()["messages"] if m["role"] == "assistant"]
+    assert len(asst) == 2
+    assert all("no output" not in m["content"].lower() for m in asst)  # both agents actually responded
