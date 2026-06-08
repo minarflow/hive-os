@@ -129,6 +129,40 @@ def test_invitable_lists_non_members_and_shrinks_after_invite(tmp_path: Path):
     assert "kuya" not in after                      # now a member, no longer invitable
 
 
+def test_shared_create_does_not_auto_enroll_everyone(tmp_path: Path):
+    api = client(tmp_path)
+    aris = login_headers(api, "aris")
+    api.post("/api/projects", json={"slug": "team-x", "name": "Team X", "visibility": "shared"}, headers=aris)
+    # kuya is NOT auto-added; still invitable
+    assert "kuya" in api.get("/api/projects/team-x/invitable", headers=aris).json()["users"]
+    members = [m["username"] for m in api.get("/api/projects/team-x/members", headers=aris).json()["members"]]
+    assert members == ["aris"]
+
+
+def test_switch_to_private_removes_other_members(tmp_path: Path):
+    api = client(tmp_path)
+    aris = login_headers(api, "aris")
+    kuya = login_headers(api, "kuya")
+    api.post("/api/projects", json={"slug": "team-y", "name": "Team Y", "visibility": "shared"}, headers=aris)
+    api.post("/api/projects/team-y/invite", json={"username": "kuya"}, headers=aris)
+    assert [p["slug"] for p in api.get("/api/projects", headers=kuya).json()["projects"]] == ["team-y"]
+
+    res = api.patch("/api/projects/team-y", json={"visibility": "private"}, headers=aris)
+    assert res.status_code == 200 and res.json()["visibility"] == "private"
+    # kuya lost access
+    assert api.get("/api/projects", headers=kuya).json()["projects"] == []
+    members = [m["username"] for m in api.get("/api/projects/team-y/members", headers=aris).json()["members"]]
+    assert members == ["aris"]
+
+
+def test_visibility_change_is_owner_only(tmp_path: Path):
+    api = client(tmp_path)
+    aris = login_headers(api, "aris")
+    kuya = login_headers(api, "kuya")
+    api.post("/api/projects", json={"slug": "team-z", "name": "Team Z"}, headers=aris)
+    assert api.patch("/api/projects/team-z", json={"visibility": "shared"}, headers=kuya).status_code == 404
+
+
 def test_invitable_is_owner_only(tmp_path: Path):
     api = client(tmp_path)
     aris = login_headers(api, "aris")

@@ -831,6 +831,12 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .task-kickoff { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px 10px; padding: 12px 14px; border: 1px dashed var(--ui-stroke-secondary); border-radius: 12px; background: var(--ui-surface-subtle); }
 .task-kickoff .primary-button { flex: 0 0 auto; }
 
+/* Project sharing member toggles */
+.member-toggles { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
+.member-toggle { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 9px; font-size: .9rem; cursor: pointer; }
+.member-toggle:hover { background: var(--ui-row-active-background); }
+.member-toggle input { width: 16px; height: 16px; accent-color: var(--ui-accent); cursor: pointer; }
+
 /* Task review / approval bar */
 .task-review-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 18px; border-bottom: 1px solid var(--ui-stroke-tertiary); background: color-mix(in srgb, var(--ui-accent) 9%, var(--ui-surface)); font-size: .88rem; color: var(--ui-text-secondary); }
 .task-review-bar .primary-button { flex: 0 0 auto; white-space: nowrap; }

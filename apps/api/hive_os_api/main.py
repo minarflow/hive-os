@@ -32,7 +32,6 @@ logger = logging.getLogger("hive_os.api")
 
 from .provisioning import (
     backfill,
-    enroll_all_users_as_members,
     get_team_name,
     provision_shared_project,
     provision_user_workspace,
@@ -115,6 +114,10 @@ class CommandPolicyRequest(BaseModel):
     command: str = Field(min_length=1)
     project_slug: str
     cwd: str | None = None
+
+
+class ProjectVisibilityRequest(BaseModel):
+    visibility: str = Field(pattern="^(private|shared)$")
 
 
 class ProjectCreateRequest(BaseModel):
@@ -1139,8 +1142,8 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         )
         project_id = cur.lastrowid
         db().execute("INSERT INTO project_members(project_id, user_id, role) VALUES (?, ?, 'owner')", (project_id, user["id"]))
-        if payload.visibility == "shared":
-            enroll_all_users_as_members(db(), project_id, user["id"])
+        # Shared projects start with only the owner; access is granted explicitly
+        # by toggling members on (see PATCH visibility + invite/remove).
         db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'project.create', 'project', ?)", (user["id"], payload.slug))
         row = dict(db().execute("SELECT p.*, ? AS owner, 'owner' AS role FROM projects p WHERE p.id = ?", (user["username"], project_id)).fetchone())
         return project_payload(row)
@@ -1148,6 +1151,20 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.get("/api/projects/{slug}")
     def get_project(slug: str, user: dict[str, Any] = Depends(current_user)):
         return project_payload(visible_project(slug, user))
+
+    @app.patch("/api/projects/{slug}")
+    def update_project(slug: str, payload: ProjectVisibilityRequest, user: dict[str, Any] = Depends(current_user)):
+        project = require_owner(slug, user)
+        db().execute("UPDATE projects SET visibility = ? WHERE id = ?", (payload.visibility, project["id"]))
+        # Private means owner-only: drop every non-owner member's access.
+        if payload.visibility == "private":
+            db().execute("DELETE FROM project_members WHERE project_id = ? AND role != 'owner'", (project["id"],))
+        db().execute("INSERT INTO audit_log(actor_user_id, action, target_type, target_id) VALUES (?, 'project.visibility', 'project', ?)", (user["id"], slug))
+        row = dict(db().execute(
+            "SELECT p.*, u.username AS owner, 'owner' AS role FROM projects p JOIN users u ON u.id = p.owner_user_id WHERE p.id = ?",
+            (project["id"],),
+        ).fetchone())
+        return project_payload(row)
 
     @app.post("/api/projects/{slug}/invite")
     def invite_user(slug: str, payload: MemberRequest, user: dict[str, Any] = Depends(current_user)):

@@ -297,7 +297,9 @@ def test_startup_backfills_existing_users(tmp_path):
         assert got == 1
 
 
-def test_create_shared_project_enrolls_all_and_scaffolds(tmp_path):
+def test_create_shared_project_scaffolds_but_does_not_auto_enroll(tmp_path):
+    # Shared projects created via the API start with only the owner; access is
+    # granted explicitly by toggling members on (no auto-enroll-everyone).
     client = _client(tmp_path)
     boot = client.post(
         "/api/setup/bootstrap",
@@ -312,10 +314,14 @@ def test_create_shared_project_enrolls_all_and_scaffolds(tmp_path):
     resp = client.post("/api/projects", headers={"Authorization": f"Bearer {token}"},
                        json={"slug": "ops", "name": "Ops", "visibility": "shared"})
     assert resp.status_code == 201, resp.text
-    assert (tmp_path / "ws" / "projects" / "ops" / "wiki").is_dir()
+    assert (tmp_path / "ws" / "projects" / "ops" / "wiki").is_dir()  # still scaffolded
     bob_token = client.post("/auth/login", json={"username": "bob", "password": "password123"}).json()["token"]
     slugs = {p["slug"] for p in client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]}
-    assert "ops" in slugs
+    assert "ops" not in slugs  # not auto-enrolled
+    # owner can grant access explicitly
+    client.post("/api/projects/ops/invite", headers={"Authorization": f"Bearer {token}"}, json={"username": "bob"})
+    slugs2 = {p["slug"] for p in client.get("/api/projects", headers={"Authorization": f"Bearer {bob_token}"}).json()["projects"]}
+    assert "ops" in slugs2
 
 
 def test_bootstrap_bad_shared_slug_is_422_not_partial(tmp_path):
