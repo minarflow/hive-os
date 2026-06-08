@@ -128,15 +128,41 @@ tailscale serve status         # verify the mapping
 Now open `https://<machine>.<tailnet>.ts.net` from any device on the tailnet and
 install Hive OS as a PWA.
 
-### Inviting teammates
+### Inviting teammates (two separate steps)
 
-1. Make sure Serve is running (above).
-2. In Hive, add the member / copy the invite link.
-3. The teammate installs Tailscale, joins the **same tailnet**, then opens the
-   invite link.
+There are **two** invites, and both are required:
 
-If the invite link shows `ERR_CONNECTION_REFUSED`, Serve isn't running (or HTTPS
-isn't enabled for the tailnet) — re-check the one-time setup above.
+| Invite | Grants | Where |
+|---|---|---|
+| **Hive invite** | A Hive login account | Hive → Team Users (admin) |
+| **Tailscale invite** | Network access to reach the host at all | Tailscale admin console |
+
+The Hive invite alone is not enough: a teammate signed into Tailscale with their
+own email lands in *their own* tailnet (every Tailscale account gets one), so
+their phone cannot reach your host until you grant network access one of two ways.
+
+**Method A — add them to your tailnet (best for a team).** In
+<https://login.tailscale.com/admin/users> → **Invite users** → enter the email
+they use on their phone → send. They accept the email invite, then sign into the
+Tailscale app on their phone with that email (if the account already belongs to
+another tailnet, use the app's tailnet switcher to pick yours).
+
+**Method B — share just this machine (keeps them on their own account).** In the
+admin console → **Machines** → your host → **Share…** → send the link. They
+accept and can reach this one machine from their own tailnet.
+
+### Joining from a phone
+
+1. Install the **Tailscale** app and sign in (with the invited email for Method
+   A; their own account for Method B). Make sure it's connected to the tailnet
+   that contains the host.
+2. Open `https://<machine>.<tailnet>.ts.net` in the phone browser.
+3. Log in with the Hive account, then **Add to Home Screen** to install the PWA.
+
+If the link shows `ERR_CONNECTION_REFUSED`: Serve isn't running, HTTPS isn't
+enabled for the tailnet, or the phone isn't on the host's tailnet — re-check the
+steps above. With Method B (shared machine), if the MagicDNS name doesn't
+resolve, use the host's Tailscale IP instead (e.g. `https://100.x.y.z`).
 
 ## systemd example
 
@@ -180,7 +206,26 @@ By default, Team Mode uses `HIVEOS_PROJECTCTL_COMMAND=/usr/bin/true`, meaning pr
 
 ## Update
 
-From an installed checkout:
+Each install is a clone of the public repo (`origin`), so updates are a normal
+`git pull`. Your data is **not** in the repo (DB, projects, profiles, and
+`.env` all live outside it and are git-ignored), so updates never touch it.
+
+**User-local install (the `scripts/install-user` / systemd user service path):**
+
+```bash
+cd hive-os
+git pull
+bash scripts/install-user      # idempotent: rebuilds + reinstalls units + restarts
+```
+
+`install-user` re-runs the full build and restarts the service. If you prefer the
+minimal path:
+
+```bash
+git pull && bash scripts/build && systemctl --user restart hive-os
+```
+
+**System-wide install (`/opt/hive-os`):**
 
 ```bash
 cd /opt/hive-os
@@ -189,13 +234,14 @@ sudo bash scripts/build
 sudo systemctl restart hive-os
 ```
 
-For user-local installs:
+> **Database schema note.** Hive creates missing tables automatically but does
+> **not** yet run column migrations. Additive updates (new tables) upgrade
+> cleanly; an update that changes an existing table's columns needs a migration
+> step — back up the DB (`bash scripts/backup`) before updating, and watch the
+> release notes for any migration instructions.
 
-```bash
-git pull
-bash scripts/build
-bash scripts/hive-os serve
-```
+If you made local edits to tracked files, `git pull` may conflict — keep changes
+in your `.env` / config (outside the repo) rather than editing source.
 
 ## Troubleshooting
 
