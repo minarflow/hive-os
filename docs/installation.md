@@ -97,21 +97,46 @@ Default user-local data lives under:
 ~/.config/hive-os/hive-os.env
 ```
 
-## Tailscale + PWA
+## Remote access & team sharing (Tailscale)
 
-Run Hive OS locally:
+Hive OS listens only on `127.0.0.1:8765`, so out of the box it is reachable
+only from the machine it runs on. To open it on your phone or **invite
+teammates**, expose it privately to your [tailnet](https://tailscale.com/) with
+Tailscale Serve. The invite links Hive generates use this machine's Tailscale
+HTTPS URL (e.g. `https://<machine>.<tailnet>.ts.net`), so they only work once
+Serve is running.
+
+### One-time setup
+
+1. Install Tailscale on the Hive host and sign in (`tailscale up`).
+2. Enable HTTPS for your tailnet (once, in the admin console):
+   <https://login.tailscale.com/admin/dns> → turn on **MagicDNS** and
+   **HTTPS Certificates**.
+3. Allow your user to run Serve without `sudo` every time:
+
+   ```bash
+   sudo tailscale set --operator=$(whoami)
+   ```
+
+### Expose Hive to the tailnet
 
 ```bash
-hive-os serve
+tailscale serve --bg 8765      # maps https://<machine>.<tailnet>.ts.net -> 127.0.0.1:8765
+tailscale serve status         # verify the mapping
 ```
 
-Expose it privately to your tailnet:
+Now open `https://<machine>.<tailnet>.ts.net` from any device on the tailnet and
+install Hive OS as a PWA.
 
-```bash
-tailscale serve --bg https / http://127.0.0.1:8765
-```
+### Inviting teammates
 
-Open the Tailscale HTTPS URL on your phone and install Hive OS as a PWA.
+1. Make sure Serve is running (above).
+2. In Hive, add the member / copy the invite link.
+3. The teammate installs Tailscale, joins the **same tailnet**, then opens the
+   invite link.
+
+If the invite link shows `ERR_CONNECTION_REFUSED`, Serve isn't running (or HTTPS
+isn't enabled for the tailnet) — re-check the one-time setup above.
 
 ## systemd example
 

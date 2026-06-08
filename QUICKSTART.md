@@ -84,15 +84,28 @@ Key variables:
 | `HIVEOS_SOURCE_HERMES_HOME` | _(unset)_ | Hermes home to copy credentials from |
 | `HIVEOS_HERMES_BIN` | _(unset, uses PATH)_ | Explicit path to the `hermes` binary |
 
-## 6. Phone / other devices via Tailscale
+## 6. Phone, other devices & inviting teammates (Tailscale)
 
-Run once (persists across reboots):
+Hive listens only on `127.0.0.1:8765`, so to reach it from your phone or to let
+**teammates open invite links**, expose it to your tailnet with Tailscale Serve.
+Invite links use this machine's Tailscale HTTPS URL, so they only work once Serve
+is running.
 
 ```bash
-tailscale serve --bg https / http://127.0.0.1:8765
+# one-time: let your user run Serve without sudo (enable MagicDNS + HTTPS
+# Certificates in the Tailscale admin console first)
+sudo tailscale set --operator=$(whoami)
+
+# expose Hive to the tailnet (persists across reboots)
+tailscale serve --bg 8765
+tailscale serve status
 ```
 
-Open your Tailscale HTTPS MagicDNS URL on any device and install the PWA from the browser menu.
+Open your Tailscale HTTPS MagicDNS URL (`https://<machine>.<tailnet>.ts.net`) on
+any device and install the PWA from the browser menu. Teammates install Tailscale,
+join the same tailnet, then open the invite link. See
+[docs/installation.md](docs/installation.md#remote-access--team-sharing-tailscale)
+for full detail and troubleshooting.
 
 ## 7. Backups
 
