@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ROOT="${HIVEOS_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# readlink -f resolves a symlink (e.g. ~/.local/bin/hive-os) back to the repo,
+# so the command works from anywhere on PATH, not just inside the checkout.
+ROOT="${HIVEOS_REPO_ROOT:-$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)}"
 API_DIR="$ROOT/apps/api"
 WEB_DIR="$ROOT/apps/web"
 DATA_DIR="${HIVEOS_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/hive-os}"
@@ -18,6 +20,20 @@ load_config() {
   export HIVEOS_HOST="${HIVEOS_HOST:-127.0.0.1}"
   export HIVEOS_PORT="${HIVEOS_PORT:-8765}"
   export PYTHONPATH="$API_DIR${PYTHONPATH:+:$PYTHONPATH}"
+}
+
+# Run a systemctl action against whichever hive-os service is installed
+# (user service preferred; falls back to the system service with sudo).
+svc() {
+  local action="$1"
+  if systemctl --user cat hive-os.service >/dev/null 2>&1; then
+    systemctl --user "$action" hive-os "${@:2}"
+  elif systemctl cat hive-os.service >/dev/null 2>&1; then
+    sudo systemctl "$action" hive-os "${@:2}"
+  else
+    echo "no installed hive-os service found (run scripts/install-user first)" >&2
+    return 1
+  fi
 }
 
 cmd="${1:-help}"; shift || true
@@ -66,18 +82,17 @@ EOF
     ( cd "$REPO/apps/api" && uv sync )
     ( cd "$REPO/apps/web" && npm install && npm run build )
     # Restart whichever service is installed so the new code (and DB migrations) load.
-    if systemctl --user cat hive-os.service >/dev/null 2>&1; then
-      echo "==> Restarting (user service)"
-      systemctl --user restart hive-os
-      echo "✅ Hive OS updated and restarted."
-    elif systemctl cat hive-os.service >/dev/null 2>&1; then
-      echo "==> Restarting (system service, sudo)"
-      sudo systemctl restart hive-os
+    echo "==> Restarting"
+    if svc restart 2>/dev/null; then
       echo "✅ Hive OS updated and restarted."
     else
       echo "✅ Built. No managed service detected — restart Hive OS yourself (e.g. 'hive-os serve')."
     fi
     ;;
+  restart) svc restart && echo "✅ restarted" ;;
+  stop)    svc stop && echo "✅ stopped" ;;
+  status)  svc status "$@" ;;
+  logs)    svc status >/dev/null 2>&1; journalctl --user -u hive-os -f 2>/dev/null || sudo journalctl -u hive-os -f ;;
   serve)
     load_config
     mkdir -p "$HIVEOS_WORKSPACE_ROOT" "$HIVEOS_HERMES_PROFILES_ROOT" "$(dirname "$HIVEOS_DB_PATH")"
@@ -96,6 +111,10 @@ Usage:
   hive-os doctor        Check dependencies and runtime dirs
   hive-os build         Sync deps, run tests, build web
   hive-os update        git pull + rebuild + restart the service (runs DB migrations)
+  hive-os restart       Restart the service
+  hive-os stop          Stop the service
+  hive-os status        Show service status
+  hive-os logs          Tail live service logs
   hive-os serve         Serve API + built PWA on HIVEOS_HOST:HIVEOS_PORT
   hive-os print-env     Print resolved HIVEOS_* env
 EOF

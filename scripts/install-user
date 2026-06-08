@@ -87,17 +87,27 @@ systemctl --user enable --now hive-os-backup.timer
 # Keep the service running even when you're not logged in (best-effort).
 loginctl enable-linger "$USER" >/dev/null 2>&1 || echo "   (note: enable-linger skipped — service runs while you're logged in)"
 
+# Put the `hive-os` command on PATH so `hive-os update` / `hive-os restart`
+# work from anywhere (not just ./scripts/hive-os inside the checkout).
+echo "==> Linking 'hive-os' command into ~/.local/bin"
+mkdir -p "$HOME/.local/bin"
+ln -sf "$ROOT/scripts/hive-os" "$HOME/.local/bin/hive-os"
+case ":$PATH:" in
+  *":$HOME/.local/bin:"*) : ;;
+  *) echo "   (note: add ~/.local/bin to your PATH to use the 'hive-os' command)" ;;
+esac
+
 PORT="$( ( set +u; source "$CONFIG_FILE" 2>/dev/null; echo "${HIVEOS_PORT:-8765}" ) )"
 cat <<EOF
 
 ✅ Hive OS is installed and running as a service.
 
    Open:        http://127.0.0.1:$PORT      (first launch asks you to create the admin account)
-   Status:      systemctl --user status hive-os
-   Logs:        journalctl --user -u hive-os -f
-   Restart:     systemctl --user restart hive-os
-   Stop:        systemctl --user stop hive-os
-   Update:      ./scripts/hive-os update    (git pull + rebuild + restart)
+   Update:      hive-os update      (git pull + rebuild + restart)
+   Restart:     hive-os restart
+   Status:      hive-os status
+   Logs:        hive-os logs
+   Stop:        hive-os stop
 
    Phone / other devices over Tailscale (run once, persists):
      sudo tailscale set --operator=\$(whoami)   # one-time
