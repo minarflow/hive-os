@@ -1189,6 +1189,22 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         ).fetchall()
         return {"members": [dict(row) for row in rows]}
 
+    @app.get("/api/projects/{slug}/invitable")
+    def invitable_users(slug: str, user: dict[str, Any] = Depends(current_user)):
+        """Users the owner can still invite (registered, not already members).
+
+        Owner-only, so a project owner can populate an invite picker without the
+        admin-only /api/users endpoint.
+        """
+        project = require_owner(slug, user)
+        rows = db().execute(
+            "SELECT username FROM users "
+            "WHERE id NOT IN (SELECT user_id FROM project_members WHERE project_id = ?) "
+            "ORDER BY username",
+            (project["id"],),
+        ).fetchall()
+        return {"users": [row["username"] for row in rows]}
+
     def _project_root(slug: str, user: dict[str, Any]) -> Path:
         project = visible_project(slug, user)
         return Path(project["path"])

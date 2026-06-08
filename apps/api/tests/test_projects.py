@@ -114,6 +114,30 @@ def test_project_create_invokes_helper_when_manage_os_acl(tmp_path: Path):
     assert "root" in res.text.lower()
 
 
+def test_invitable_lists_non_members_and_shrinks_after_invite(tmp_path: Path):
+    api = client(tmp_path)
+    aris = login_headers(api, "aris")
+    api.post("/api/projects", json={"slug": "proj-x", "name": "Proj X"}, headers=aris)
+
+    before = api.get("/api/projects/proj-x/invitable", headers=aris)
+    assert before.status_code == 200
+    assert "kuya" in before.json()["users"]      # registered, not yet a member
+    assert "aris" not in before.json()["users"]   # owner is already a member
+
+    api.post("/api/projects/proj-x/invite", json={"username": "kuya"}, headers=aris)
+    after = api.get("/api/projects/proj-x/invitable", headers=aris).json()["users"]
+    assert "kuya" not in after                      # now a member, no longer invitable
+
+
+def test_invitable_is_owner_only(tmp_path: Path):
+    api = client(tmp_path)
+    aris = login_headers(api, "aris")
+    kuya = login_headers(api, "kuya")
+    api.post("/api/projects", json={"slug": "proj-y", "name": "Proj Y"}, headers=aris)
+    # non-member (kuya) cannot enumerate invitable users
+    assert api.get("/api/projects/proj-y/invitable", headers=kuya).status_code == 404
+
+
 def test_non_member_cannot_read_project_detail(tmp_path: Path):
     api = client(tmp_path)
     aris = login_headers(api, "aris")
