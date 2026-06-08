@@ -43,7 +43,7 @@ def test_run_moves_task_to_review(tmp_path):
         def cancel(self, *a): pass
 
     class FakeMgr:
-        async def get(self, home, cwd=None): return FakeProc()
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
         async def shutdown(self): pass
 
     app.state.acp_manager = FakeMgr()
@@ -112,8 +112,8 @@ def test_collaborators_get_independent_agent_sessions(tmp_path):
 
     class FakeMgr:
         def __init__(self): self.procs = {}
-        async def get(self, home, cwd=None): return self.procs.setdefault(home or "", FakeProc())
-        async def recycle(self, *a, **k): pass
+        async def get(self, spec=None, home=None, cwd=None): return self.procs.setdefault(home or "", FakeProc())
+        async def recycle(self, spec=None, home=None, cwd=None): pass
         async def shutdown(self): pass
 
     app.state.acp_manager = FakeMgr()

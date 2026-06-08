@@ -45,8 +45,10 @@ class AcpError(Exception):
 
 
 class AcpProcess:
-    def __init__(self, hermes_home: str, cwd: str):
-        self.hermes_home = hermes_home
+    def __init__(self, spec, home: str, cwd: str):
+        self.spec = spec
+        self.home = home
+        self.hermes_home = home  # alias kept for any external references
         self.cwd = cwd
         self.proc: asyncio.subprocess.Process | None = None
         self._next_id = 0
@@ -70,20 +72,20 @@ class AcpProcess:
         if self._started:
             return
         env = os.environ.copy()
-        env["HERMES_HOME"] = self.hermes_home or ""
+        if self.home:
+            env[self.spec.home_env] = self.home
+            os.makedirs(self.home, exist_ok=True)
         env["PATH"] = augmented_path(env.get("PATH"))
-        if self.hermes_home:
-            os.makedirs(self.hermes_home, exist_ok=True)
         os.makedirs(self.cwd, exist_ok=True)
         self.proc = await asyncio.create_subprocess_exec(
-            "hermes", "acp", "--accept-hooks",
+            *self.spec.spawn_argv,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, env=env, cwd=self.cwd, limit=READ_LIMIT,
         )
         self._reader = asyncio.create_task(self._read_loop())
         self._stderr_reader = asyncio.create_task(self._read_stderr())
         await self._request("initialize", {"protocolVersion": 1, "clientCapabilities": {}})
-        self.config_sig = config_sig(self.hermes_home)
+        self.config_sig = config_sig(self.home)
         self._started = True
 
     async def _read_loop(self) -> None:
@@ -213,47 +215,47 @@ class AcpProcess:
 
 
 class AcpManager:
-    """Owns one AcpProcess per (HERMES_HOME, cwd), started on demand.
+    """Owns one AcpProcess per (runner_id, home, cwd), started on demand.
 
-    Keyed by cwd because Hermes writes files relative to the agent process's
+    Keyed by cwd because the agent writes files relative to the agent process's
     working directory — so each project needs its own process rooted there.
     """
 
     def __init__(self) -> None:
-        self._procs: dict[tuple[str, str], AcpProcess] = {}
+        self._procs: dict[tuple[str, str, str], AcpProcess] = {}
         self._lock = asyncio.Lock()
 
-    async def get(self, hermes_home: str, cwd: str) -> AcpProcess:
-        key = (hermes_home, cwd)
+    async def get(self, spec, home: str, cwd: str) -> AcpProcess:
+        key = (spec.id, home, cwd)
         async with self._lock:
             proc = self._procs.get(key)
             if proc and proc._started:
                 # Recycle if MCP/skill config changed since this process started,
                 # so newly added tools load on the next run (no manual restart).
-                if proc.config_sig == config_sig(hermes_home):
+                if proc.config_sig == config_sig(home):
                     return proc
-                logger.info("acp: tool config changed, recycling process for %s", hermes_home)
+                logger.info("acp: tool config changed, recycling process for %s", home)
                 await proc.stop()
                 self._procs.pop(key, None)
-            proc = AcpProcess(hermes_home, cwd)
+            proc = AcpProcess(spec, home, cwd)
             await proc.start()
             self._procs[key] = proc
             return proc
 
-    async def recycle(self, hermes_home: str, cwd: str) -> None:
-        """Kill and evict the cached process for (hermes_home, cwd).
+    async def recycle(self, spec, home: str, cwd: str) -> None:
+        """Kill and evict the cached process for (spec.id, home, cwd).
 
         Used when a run times out: `session/cancel` is fire-and-forget and a
-        Hermes turn wedged inside a blocking tool call can't process it, so the
+        runner turn wedged inside a blocking tool call can't process it, so the
         cached process would carry the stuck turn into the next prompt (every
         later message returns "Queued for the next turn"). Terminating the
         process guarantees the next run spawns a fresh agent.
         """
-        key = (hermes_home, cwd)
+        key = (spec.id, home, cwd)
         async with self._lock:
             proc = self._procs.pop(key, None)
         if proc:
-            logger.info("acp: recycling process for %s (cwd=%s)", hermes_home, cwd)
+            logger.info("acp: recycling process for %s (cwd=%s)", home, cwd)
             await proc.stop()
 
     async def shutdown(self) -> None:

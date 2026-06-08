@@ -25,6 +25,7 @@ from .runners import augmented_path, detect_runners, hermes_status
 from .acp import AcpManager
 from .apprunner import AppManager
 from .profile_seed import refresh_hermes_credentials, seed_hermes_home
+from .runner_specs import runner_spec
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 from . import fsapi
@@ -395,6 +396,7 @@ class RunWorker:
         session_id = int(run["session_id"])
         project_id = run["project_id"]
         hermes_home = run["hermes_home"] or ""
+        spec = runner_spec(run["runner_id"])
         cwd = str(Path(cfg["workspace_root"]) / "scratch")
         if project_id:
             row = db.execute("SELECT path FROM projects WHERE id = ?", (project_id,)).fetchone()
@@ -430,17 +432,18 @@ class RunWorker:
             # creation goes stale when the host rotates its OAuth token, which
             # shows up as the agent producing "no output". Refresh from the live
             # source before each run so shared-account profiles keep working.
-            if hermes_home and cfg.get("refresh_credentials", True):
+            # Only applies to hermes — other runners manage their own auth.
+            if spec.id == "hermes" and hermes_home and cfg.get("refresh_credentials", True):
                 try:
                     src = cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")
                     changed = refresh_hermes_credentials(Path(src), Path(hermes_home))
                     if changed:
                         # A cached agent process holds the old auth in memory; drop
                         # it so the next get() spawns one that reads the fresh token.
-                        await self.app.state.acp_manager.recycle(hermes_home, cwd)
+                        await self.app.state.acp_manager.recycle(spec, hermes_home, cwd)
                 except Exception:
                     logging.getLogger("hive_os.worker").exception("hermes credential refresh failed")
-            proc = await self.app.state.acp_manager.get(hermes_home, cwd)
+            proc = await self.app.state.acp_manager.get(spec, hermes_home, cwd)
             # ACP sessions are home-specific: look up THIS home's session for the
             # thread (each collaborator has their own). Loading another home's id
             # silently fails on the agent side -> prompt to a missing session ->
@@ -505,7 +508,7 @@ class RunWorker:
                 try: entry[0].cancel(entry[1])
                 except Exception: pass
             try:
-                await self.app.state.acp_manager.recycle(hermes_home, cwd)
+                await self.app.state.acp_manager.recycle(spec, hermes_home, cwd)
             except Exception:
                 logging.getLogger("hive_os.worker").exception("failed to recycle agent process after timeout")
             with self.app.state.db_lock:

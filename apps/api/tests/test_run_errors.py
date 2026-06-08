@@ -37,13 +37,13 @@ class FakeAcpProcess:
 class FakeAcpManager:
     def __init__(self, behavior: str):
         self.behavior = behavior
-        self.recycled: list[tuple[str, str]] = []
+        self.recycled: list[tuple] = []
 
-    async def get(self, hermes_home, cwd=None):
+    async def get(self, spec=None, home=None, cwd=None):
         return FakeAcpProcess(self.behavior)
 
-    async def recycle(self, hermes_home, cwd=None):
-        self.recycled.append((hermes_home, cwd))
+    async def recycle(self, spec=None, home=None, cwd=None):
+        self.recycled.append((home, cwd))
 
     async def shutdown(self):
         pass
