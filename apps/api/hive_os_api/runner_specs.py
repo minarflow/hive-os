@@ -11,6 +11,12 @@ class RunnerSpec:
     binary: str            # the underlying CLI that must be installed/authenticated
     display_name: str
     auth_hint: str = ""
+    # Host dir the agent's login lives in (~ is expanded at use). Hive copies the
+    # listed files into each new profile home so the agent is authenticated out of
+    # the box, and re-copies refresh_files before each run to follow token rotation.
+    source_dir: str = ""
+    seed_files: tuple[str, ...] = ()
+    refresh_files: tuple[str, ...] = ()
 
 
 RUNNER_SPECS: dict[str, RunnerSpec] = {
@@ -21,6 +27,9 @@ RUNNER_SPECS: dict[str, RunnerSpec] = {
         binary="hermes",
         display_name="Hermes",
         auth_hint="Install the Hermes CLI and authenticate (e.g. `hermes -z`).",
+        source_dir="~/.hermes",
+        seed_files=(".env", "auth.json", "config.yaml"),
+        refresh_files=("auth.json", "config.yaml"),
     ),
     "claude-code": RunnerSpec(
         id="claude-code",
@@ -29,6 +38,9 @@ RUNNER_SPECS: dict[str, RunnerSpec] = {
         binary="claude",
         display_name="Claude Code",
         auth_hint="Install Claude Code and run `claude /login` (or set ANTHROPIC_API_KEY).",
+        source_dir="~/.claude",
+        seed_files=(".credentials.json", ".claude.json"),
+        refresh_files=(".credentials.json",),
     ),
     "codex": RunnerSpec(
         id="codex",
@@ -37,6 +49,9 @@ RUNNER_SPECS: dict[str, RunnerSpec] = {
         binary="codex",
         display_name="Codex",
         auth_hint="Install the Codex CLI and run `codex login` (or set OPENAI_API_KEY).",
+        source_dir="~/.codex",
+        seed_files=("auth.json", "config.toml"),
+        refresh_files=("auth.json",),
     ),
 }
 

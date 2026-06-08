@@ -54,11 +54,13 @@ def test_seed_missing_source_is_noop(tmp_path):
     assert seed_hermes_home(tmp_path / "nope", target) == []
 
 
-def test_seed_skips_symlinks(tmp_path):
+def test_seed_follows_symlinked_credentials(tmp_path):
+    # Credential files are often symlinks (e.g. multi-account setups), so seeding
+    # FOLLOWS the link and copies the target's content as a plain file.
     source = tmp_path / "src"
     source.mkdir()
     real_file = tmp_path / "real.env"
-    real_file.write_text("SECRET=outside\n", encoding="utf-8")
+    real_file.write_text("SECRET=value\n", encoding="utf-8")
     os.symlink(real_file, source / ".env")
 
     target = tmp_path / "tgt"
@@ -66,8 +68,10 @@ def test_seed_skips_symlinks(tmp_path):
 
     copied = seed_hermes_home(source, target)
 
-    assert ".env" not in copied
-    assert not (target / ".env").exists()
+    assert ".env" in copied
+    dst = target / ".env"
+    assert dst.is_file() and not dst.is_symlink()        # copied as a plain file
+    assert dst.read_text() == "SECRET=value\n"           # content followed
 
 
 def test_bootstrap_seeds_profile_home_from_source(tmp_path):

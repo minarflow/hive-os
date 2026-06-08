@@ -24,7 +24,7 @@ from .migrations import run_migrations
 from .runners import augmented_path, detect_runners, hermes_status, runner_readiness
 from .acp import AcpManager
 from .apprunner import AppManager
-from .profile_seed import refresh_hermes_credentials, seed_hermes_home
+from .profile_seed import refresh_agent_credentials, seed_agent_home
 from .runner_specs import RUNNER_SPECS, runner_spec
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
@@ -58,6 +58,7 @@ class BootstrapRequest(BaseModel):
     password: str = Field(min_length=8)
     profile_name: str = "Default"
     profile_slug: str = "default"
+    runner_id: str = "hermes"
     team_name: str | None = Field(default=None, max_length=80)
     shared_project: SharedProjectSpec | None = None
 
@@ -158,6 +159,7 @@ class ProfileUpdateRequest(BaseModel):
     name: str | None = None
     default_model: str | None = None
     is_default: bool | None = None
+    runner_id: str | None = None
 
 
 class SessionCreateRequest(BaseModel):
@@ -431,19 +433,22 @@ class RunWorker:
         try:
             # Keep this profile's credentials current: a copy made at account
             # creation goes stale when the host rotates its OAuth token, which
-            # shows up as the agent producing "no output". Refresh from the live
-            # source before each run so shared-account profiles keep working.
-            # Only applies to hermes — other runners manage their own auth.
-            if spec.id == "hermes" and hermes_home and cfg.get("refresh_credentials", True):
+            # shows up as the agent producing "no output". Refresh the runner's
+            # auth files from the host before each run so shared-account profiles
+            # keep working (applies to any runner with refresh_files).
+            if spec.refresh_files and hermes_home and cfg.get("refresh_credentials", True):
                 try:
-                    src = cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")
-                    changed = refresh_hermes_credentials(Path(src), Path(hermes_home))
+                    if spec.id == "hermes":
+                        src = Path(cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes"))
+                    else:
+                        src = Path(os.path.expanduser(spec.source_dir)) if spec.source_dir else Path("/nonexistent")
+                    changed = refresh_agent_credentials(src, Path(hermes_home), spec.refresh_files)
                     if changed:
                         # A cached agent process holds the old auth in memory; drop
                         # it so the next get() spawns one that reads the fresh token.
                         await self.app.state.acp_manager.recycle(spec, hermes_home, cwd)
                 except Exception:
-                    logging.getLogger("hive_os.worker").exception("hermes credential refresh failed")
+                    logging.getLogger("hive_os.worker").exception("agent credential refresh failed")
             proc = await self.app.state.acp_manager.get(spec, hermes_home, cwd)
             # ACP sessions are home-specific: look up THIS home's session for the
             # thread (each collaborator has their own). Loading another home's id
@@ -658,11 +663,22 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         )
         return token
 
+    def runner_source_dir(spec) -> Path:
+        """Host dir to seed/refresh this runner's credentials from. Hermes honors
+        the configured source_hermes_home override; others use the spec default."""
+        if spec.id == "hermes":
+            return Path(cfg["source_hermes_home"])
+        return Path(os.path.expanduser(spec.source_dir or "")) if spec.source_dir else Path("/nonexistent")
+
     def create_profile_for(user: dict[str, Any], slug: str, name: str, default_model: str | None = None, is_default: bool = False, runner_id: str = "hermes") -> dict[str, Any]:
         slug = validate_slug(slug)
         home = hermes_home_for(cfg, user["username"], slug)
         home.mkdir(parents=True, exist_ok=True)
-        seed_hermes_home(Path(cfg["source_hermes_home"]), home)
+        # Seed the chosen runner's credentials from the host so the profile's agent
+        # is authenticated out of the box (same idea as Hermes, now per-runner).
+        spec = runner_spec(runner_id)
+        if spec.seed_files:
+            seed_agent_home(runner_source_dir(spec), home, spec.seed_files)
         if is_default:
             db().execute("UPDATE profiles SET is_default = 0 WHERE user_id = ?", (user["id"],))
         cur = db().execute(
@@ -757,24 +773,30 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.get("/api/setup/status")
     def setup_status() -> dict[str, Any]:
         count = db().execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]
+        # Runner list (id + name + installed) so the first-run setup screen can
+        # offer a runner picker before any auth token exists.
+        readiness = runner_readiness()
         return {
             "bootstrap_required": count == 0,
             "mode": "team",
             "team_name": get_team_name(db(), cfg),
             "hermes_profiles_root": cfg["hermes_profiles_root"],
+            "runners": [{"id": r["id"], "displayName": r["displayName"], "installed": r["installed"]} for r in readiness.values()],
         }
 
     @app.post("/api/setup/bootstrap", status_code=201)
     def setup_bootstrap(payload: BootstrapRequest) -> dict[str, Any]:
         if db().execute("SELECT COUNT(*) AS c FROM users").fetchone()["c"]:
             raise HTTPException(status_code=409, detail="bootstrap already completed")
+        if payload.runner_id not in RUNNER_SPECS:
+            raise HTTPException(status_code=400, detail="unknown runner")
         username = validate_slug(payload.username)
         cur = db().execute(
             "INSERT INTO users(username, os_user, role, password_hash, password_set_at) VALUES (?, ?, 'environment_admin', ?, ?)",
             (username, username, hash_password(payload.password), iso_now()),
         )
         user = dict(db().execute("SELECT * FROM users WHERE id = ?", (cur.lastrowid,)).fetchone())
-        profile = create_profile_for(user, payload.profile_slug, payload.profile_name, is_default=True)
+        profile = create_profile_for(user, payload.profile_slug, payload.profile_name, is_default=True, runner_id=payload.runner_id)
         team_name = payload.team_name or cfg.get("default_team_name") or "Team"
         set_team_name(db(), team_name)
         # Provision the shared project FIRST so that if the admin's username equals the
@@ -1134,6 +1156,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             db().execute("UPDATE profiles SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (payload.name, profile_id))
         if payload.default_model is not None:
             db().execute("UPDATE profiles SET default_model = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (payload.default_model, profile_id))
+        if payload.runner_id is not None:
+            if payload.runner_id not in RUNNER_SPECS:
+                raise HTTPException(status_code=400, detail="unknown runner")
+            db().execute("UPDATE profiles SET runner_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (payload.runner_id, profile_id))
         return profile_payload(dict(db().execute("SELECT * FROM profiles WHERE id = ?", (profile_id,)).fetchone()))
 
     @app.delete("/api/profiles/{profile_id}")
