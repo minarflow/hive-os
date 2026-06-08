@@ -79,7 +79,10 @@ EOF
 
 echo "==> Enabling services"
 systemctl --user daemon-reload
-systemctl --user enable --now hive-os.service
+systemctl --user enable hive-os.service
+# restart (not just enable --now) so re-running this to UPDATE actually loads
+# the new code — enable --now is a no-op on an already-running unit.
+systemctl --user restart hive-os.service
 systemctl --user enable --now hive-os-backup.timer
 # Keep the service running even when you're not logged in (best-effort).
 loginctl enable-linger "$USER" >/dev/null 2>&1 || echo "   (note: enable-linger skipped — service runs while you're logged in)"
