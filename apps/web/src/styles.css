@@ -216,9 +216,17 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .runner-card.missing { opacity: .68; }
 .runner-card-head { justify-content: space-between; gap: 10px; }
 .runner-card-head span { border-radius: 999px; background: var(--ui-row-hover-background); color: var(--ui-text-secondary); font-size: .72rem; padding: 4px 7px; }
+.runner-card { display: flex; flex-direction: column; gap: 8px; }
 .runner-card small { color: var(--ui-text-tertiary); }
-.runner-card p { color: var(--ui-text-secondary); min-height: 34px; }
-.runner-card code { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--ui-stroke-tertiary); border-radius: 9px; background: var(--ui-surface-subtle); color: var(--ui-text-secondary); padding: 7px; font-size: .75rem; }
+.runner-card .profile-slug { margin-top: -5px; font-size: .78rem; }
+.profile-meta { display: grid; gap: 7px; }
+.profile-row { display: flex; align-items: center; gap: 8px; font-size: .82rem; min-width: 0; }
+.profile-key { flex: 0 0 auto; width: 50px; color: var(--ui-text-tertiary); }
+.profile-row .dd { flex: 1; min-width: 0; }
+.profile-row .dd-btn { min-width: 0; }
+.profile-val { flex: 1; min-width: 0; color: var(--ui-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.profile-home { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border: 1px solid var(--ui-stroke-tertiary); border-radius: 8px; background: var(--ui-surface-subtle); color: var(--ui-text-tertiary); padding: 4px 8px; font-size: .72rem; font-family: ui-monospace, monospace; }
+.runner-card .button-row { margin-top: 2px; }
 
 .login-screen { min-height: 100%; display: grid; place-items: center; background: radial-gradient(circle at top, #eef5ff, #fbfcfe 55%); }
 .login-card { width: min(420px, calc(100% - 28px)); display: grid; gap: 16px; border: 1px solid var(--ui-stroke-secondary); border-radius: 26px; background: rgba(255,255,255,.86); box-shadow: var(--shadow-composer); padding: 26px; }
@@ -549,9 +557,9 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .dd-caret { display: inline-flex; color: var(--ui-text-tertiary); transform: rotate(90deg); flex: 0 0 auto; }
 .dd-badge { font-size: .64rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; background: var(--ui-surface-subtle); color: var(--ui-text-tertiary); flex: 0 0 auto; }
 .dd-badge.shared, .dd-badge.admin { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); color: var(--ui-accent); }
-.dd-menu { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; min-width: 100%; max-height: 50vh; overflow: auto; display: grid; gap: 1px; border: 1px solid var(--ui-stroke-secondary); border-radius: 12px; background: var(--ui-surface); box-shadow: 0 14px 34px rgba(15,23,42,.18); padding: 6px; }
+.dd-menu { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; min-width: 100%; max-height: 50vh; overflow: auto; display: grid; gap: 4px; border: 1px solid var(--ui-stroke-secondary); border-radius: 12px; background: var(--ui-surface); box-shadow: 0 14px 34px rgba(15,23,42,.18); padding: 7px; }
 .dd-menu.right { left: auto; right: 0; }
-.dd-item { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; border: 0; border-radius: 8px; background: transparent; color: var(--ui-text-secondary); padding: 8px 9px; font-size: .86rem; white-space: nowrap; }
+.dd-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; text-align: left; border: 0; border-radius: 9px; background: transparent; color: var(--ui-text-secondary); padding: 9px 11px; font-size: .86rem; white-space: nowrap; }
 .dd-item:hover { background: var(--ui-row-hover-background); color: var(--ui-text-primary); }
 .dd-item.active { background: var(--ui-row-active-background); color: var(--ui-accent); }
 
