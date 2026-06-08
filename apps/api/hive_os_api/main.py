@@ -1507,6 +1507,14 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     @app.get("/api/sessions")
     def list_sessions(user: dict[str, Any] = Depends(current_user)):
+        # Self-heal: a task thread whose task no longer exists is an orphan (it
+        # would show in the sidebar with no way to delete it — the delete button
+        # targets the missing task). Drop these so they disappear automatically.
+        db().execute(
+            "DELETE FROM sessions WHERE owner_user_id = ? AND task_id IS NOT NULL "
+            "AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id = sessions.task_id)",
+            (user["id"],),
+        )
         rows = db().execute(
             """
             SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name, t.title AS task_title

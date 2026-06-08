@@ -77,3 +77,19 @@ def test_session_rename_and_delete(tmp_path):
     assert client.get("/api/sessions", headers=headers).json()["sessions"] == []
     # messages of a deleted session are gone (cascade) -> session not found
     assert client.get(f"/api/sessions/{sid}/messages", headers=headers).status_code == 404
+
+
+def test_orphan_task_session_is_self_healed(tmp_path):
+    from fastapi.testclient import TestClient
+    from hive_os_api.main import create_app
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "kuya", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    slug = c.get("/api/projects", headers=h).json()["projects"][0]["slug"]
+    task = c.post(f"/api/projects/{slug}/tasks", headers=h, json={"title": "t"}).json()
+    sid = task["session_id"]
+    # simulate a stale orphan: task gone but its session lingers (pre-fix state)
+    app.state.db.execute("DELETE FROM tasks WHERE id = ?", (task["id"],))
+    # the list call self-heals: the orphan session is gone
+    assert all(s["id"] != sid for s in c.get("/api/sessions", headers=h).json()["sessions"])
