@@ -210,18 +210,18 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .runners-view { flex: 1; overflow: auto; padding: 20px; }
 .runners-panel { max-width: 980px; }
 .runner-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-.runner-card { border: 1px solid var(--ui-stroke-tertiary); border-radius: 16px; background: var(--ui-surface); padding: 13px; }
+.runner-card { border: 1px solid var(--ui-stroke-tertiary); border-radius: 16px; background: var(--ui-surface); padding: 18px 18px 16px; }
 .runner-card.ready { border-color: rgba(22, 163, 74, .35); background: linear-gradient(180deg, #ffffff, #f6fff9); }
 .runner-card.detected { border-color: rgba(245, 158, 11, .35); background: linear-gradient(180deg, #ffffff, #fffaf0); }
 .runner-card.missing { opacity: .68; }
 .runner-card-head { justify-content: space-between; gap: 10px; }
 .runner-card-head span { border-radius: 999px; background: var(--ui-row-hover-background); color: var(--ui-text-secondary); font-size: .72rem; padding: 4px 7px; }
-.runner-card { display: flex; flex-direction: column; gap: 8px; }
+.runner-card { display: flex; flex-direction: column; gap: 11px; }
 .runner-card small { color: var(--ui-text-tertiary); }
-.runner-card .profile-slug { margin-top: -5px; font-size: .78rem; }
-.profile-meta { display: grid; gap: 7px; }
-.profile-row { display: flex; align-items: center; gap: 8px; font-size: .82rem; min-width: 0; }
-.profile-key { flex: 0 0 auto; width: 50px; color: var(--ui-text-tertiary); }
+.runner-card .profile-slug { margin-top: -7px; font-size: .78rem; }
+.profile-meta { display: grid; gap: 9px; }
+.profile-row { display: flex; align-items: center; gap: 10px; font-size: .82rem; min-width: 0; }
+.profile-key { flex: 0 0 auto; width: 54px; color: var(--ui-text-tertiary); }
 .profile-row .dd { flex: 1; min-width: 0; }
 .profile-row .dd-btn { min-width: 0; }
 .profile-val { flex: 1; min-width: 0; color: var(--ui-text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -559,6 +559,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .dd-badge.shared, .dd-badge.admin { background: color-mix(in srgb, var(--ui-accent) 14%, transparent); color: var(--ui-accent); }
 .dd-menu { position: absolute; z-index: 60; top: calc(100% + 6px); left: 0; min-width: 100%; max-height: 50vh; overflow: auto; display: grid; gap: 4px; border: 1px solid var(--ui-stroke-secondary); border-radius: 12px; background: var(--ui-surface); box-shadow: 0 14px 34px rgba(15,23,42,.18); padding: 7px; }
 .dd-menu.right { left: auto; right: 0; }
+.dd-menu.up { top: auto; bottom: calc(100% + 6px); }
 .dd-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; width: 100%; text-align: left; border: 0; border-radius: 9px; background: transparent; color: var(--ui-text-secondary); padding: 9px 11px; font-size: .86rem; white-space: nowrap; }
 .dd-item:hover { background: var(--ui-row-hover-background); color: var(--ui-text-primary); }
 .dd-item.active { background: var(--ui-row-active-background); color: var(--ui-accent); }
