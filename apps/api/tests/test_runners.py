@@ -108,6 +108,34 @@ def test_hermes_status_explicit_binary_missing_falls_back(tmp_path):
     assert st["binary"] is None
 
 
+def test_runner_readiness_reports_specs():
+    from hive_os_api.runners import runner_readiness
+    r = runner_readiness()
+    assert "hermes" in r and "claude-code" in r
+    for v in r.values():
+        assert set(["id", "displayName", "installed", "ready", "authHint"]).issubset(v.keys())
+
+
+def test_runner_readiness_shape_for_uninstalled(monkeypatch):
+    import hive_os_api.runners as r
+    monkeypatch.setattr(r, "resolve_binary", lambda *a, **k: None)
+    out = r.runner_readiness()
+    assert out["hermes"]["installed"] is False
+    assert out["hermes"]["ready"] is False
+    assert out["hermes"]["authHint"]  # hint shown when not installed
+
+
+def test_detect_endpoint_includes_runner_readiness(tmp_path):
+    from fastapi.testclient import TestClient
+    from hive_os_api.main import create_app
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "rt"), "seed_users": [{"username": "kuya", "os_user": "kuya", "role": "environment_admin"}]})
+    api = TestClient(app)
+    tok = api.post("/auth/login", json={"username": "kuya", "password": "password123"}).json()["token"]
+    body = api.get("/api/runners/detect", headers={"Authorization": f"Bearer {tok}"}).json()
+    assert "runnerReadiness" in body
+    assert "hermes" in body["runnerReadiness"] and "claude-code" in body["runnerReadiness"]
+
+
 def test_runners_detect_endpoint_requires_login(tmp_path: Path):
     app = create_app(
         {

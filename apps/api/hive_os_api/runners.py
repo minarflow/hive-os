@@ -107,6 +107,25 @@ def detect_runners(path_env: str | None = None, registry: Iterable[RunnerDefinit
     return detected
 
 
+def runner_readiness(path_env: str | None = None) -> dict:
+    """For each runner that has a spawn spec, report whether its CLI is
+    installed (selectable) and a hint for authenticating it."""
+    from .runner_specs import RUNNER_SPECS
+    resolved = augmented_path(path_env)
+    out: dict[str, dict] = {}
+    for rid, spec in RUNNER_SPECS.items():
+        binary = resolve_binary(spec.binary, resolved)
+        out[rid] = {
+            "id": rid,
+            "displayName": spec.display_name,
+            "installed": binary is not None,
+            "binary": binary,
+            "ready": binary is not None,   # auth is verified at run time (surfaced via stderr)
+            "authHint": "" if binary else spec.auth_hint,
+        }
+    return out
+
+
 def _hermes_home_usable(home: str) -> bool:
     p = Path(home)
     return p.is_dir() and ((p / "auth.json").exists() or (p / "config.yaml").exists())

@@ -21,7 +21,7 @@ from .auth import expiry, hash_password, hash_token, iso_now, new_token, verify_
 from .commands import command_catalog, execute_command
 from .db import connect, init_db
 from .migrations import run_migrations
-from .runners import augmented_path, detect_runners, hermes_status
+from .runners import augmented_path, detect_runners, hermes_status, runner_readiness
 from .acp import AcpManager
 from .apprunner import AppManager
 from .profile_seed import refresh_hermes_credentials, seed_hermes_home
@@ -1157,6 +1157,7 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             "user": user["username"],
             "runners": runners,
             "hermes": hermes_status(source_home=cfg.get("source_hermes_home"), binary=cfg.get("hermes_bin"), path_env=None),
+            "runnerReadiness": runner_readiness(),
         }
 
     @app.get("/api/commands/catalog")
