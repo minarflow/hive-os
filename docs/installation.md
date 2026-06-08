@@ -14,7 +14,7 @@ Hive OS is Linux-first and runs as a Hermes-first Team Mode PWA. Team Mode uses 
 ## Quick dev run
 
 ```bash
-git clone <repo-url> hive-os
+git clone https://github.com/minarflow/hive-os hive-os
 cd hive-os
 bash scripts/dev
 ```
