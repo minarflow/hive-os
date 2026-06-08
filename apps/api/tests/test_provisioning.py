@@ -598,3 +598,21 @@ def test_scaffold_rejects_unsafe_slug(tmp_path):
         provisioning.scaffold_project_dir(cfg, ".hidden")
     with pytest.raises(ValueError, match="unsafe slug"):
         provisioning.scaffold_project_dir(cfg, "foo\\bar")
+
+
+def test_refresh_credentials_overwrites_stale_copy(tmp_path):
+    # seed copies once and never updates; refresh updates when the host rotates.
+    from hive_os_api.profile_seed import seed_hermes_home, refresh_hermes_credentials
+    src = tmp_path / "src"; src.mkdir()
+    (src / "auth.json").write_text("token-v1"); (src / "config.yaml").write_text("cfg")
+    tgt = tmp_path / "tgt"; tgt.mkdir()
+    seed_hermes_home(src, tgt)
+    assert (tgt / "auth.json").read_text() == "token-v1"
+    # host rotates its OAuth token
+    (src / "auth.json").write_text("token-v2")
+    seed_hermes_home(src, tgt)  # idempotent: does NOT update
+    assert (tgt / "auth.json").read_text() == "token-v1"
+    changed = refresh_hermes_credentials(src, tgt)  # refresh DOES update
+    assert "auth.json" in changed
+    assert (tgt / "auth.json").read_text() == "token-v2"
+    assert refresh_hermes_credentials(src, tgt) == []  # idempotent when unchanged

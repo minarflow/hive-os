@@ -24,7 +24,7 @@ from .migrations import run_migrations
 from .runners import augmented_path, detect_runners, hermes_status
 from .acp import AcpManager
 from .apprunner import AppManager
-from .profile_seed import seed_hermes_home
+from .profile_seed import refresh_hermes_credentials, seed_hermes_home
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 from . import fsapi
@@ -426,6 +426,20 @@ class RunWorker:
                     self.add_event(run_id, session_id, project_id, "tool.complete", {"id": u.get("toolCallId"), "status": u.get("status")})
 
         try:
+            # Keep this profile's credentials current: a copy made at account
+            # creation goes stale when the host rotates its OAuth token, which
+            # shows up as the agent producing "no output". Refresh from the live
+            # source before each run so shared-account profiles keep working.
+            if hermes_home:
+                try:
+                    src = cfg.get("source_hermes_home") or os.path.expanduser("~/.hermes")
+                    changed = refresh_hermes_credentials(Path(src), Path(hermes_home))
+                    if changed:
+                        # A cached agent process holds the old auth in memory; drop
+                        # it so the next get() spawns one that reads the fresh token.
+                        await self.app.state.acp_manager.recycle(hermes_home, cwd)
+                except Exception:
+                    logging.getLogger("hive_os.worker").exception("hermes credential refresh failed")
             proc = await self.app.state.acp_manager.get(hermes_home, cwd)
             srow = db.execute("SELECT acp_session_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
             acp_sid = srow["acp_session_id"] if srow else None
