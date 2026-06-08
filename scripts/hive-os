@@ -57,6 +57,27 @@ EOF
   build)
     exec "$ROOT/scripts/build" "$@"
     ;;
+  update)
+    load_config
+    REPO="${HIVEOS_REPO_ROOT:-$ROOT}"
+    echo "==> Pulling latest ($REPO)"
+    git -C "$REPO" pull --ff-only
+    echo "==> Rebuilding"
+    ( cd "$REPO/apps/api" && uv sync )
+    ( cd "$REPO/apps/web" && npm install && npm run build )
+    # Restart whichever service is installed so the new code (and DB migrations) load.
+    if systemctl --user cat hive-os.service >/dev/null 2>&1; then
+      echo "==> Restarting (user service)"
+      systemctl --user restart hive-os
+      echo "✅ Hive OS updated and restarted."
+    elif systemctl cat hive-os.service >/dev/null 2>&1; then
+      echo "==> Restarting (system service, sudo)"
+      sudo systemctl restart hive-os
+      echo "✅ Hive OS updated and restarted."
+    else
+      echo "✅ Built. No managed service detected — restart Hive OS yourself (e.g. 'hive-os serve')."
+    fi
+    ;;
   serve)
     load_config
     mkdir -p "$HIVEOS_WORKSPACE_ROOT" "$HIVEOS_HERMES_PROFILES_ROOT" "$(dirname "$HIVEOS_DB_PATH")"
@@ -74,6 +95,7 @@ Usage:
   hive-os init-config   Create local config at $CONFIG_FILE
   hive-os doctor        Check dependencies and runtime dirs
   hive-os build         Sync deps, run tests, build web
+  hive-os update        git pull + rebuild + restart the service (runs DB migrations)
   hive-os serve         Serve API + built PWA on HIVEOS_HOST:HIVEOS_PORT
   hive-os print-env     Print resolved HIVEOS_* env
 EOF

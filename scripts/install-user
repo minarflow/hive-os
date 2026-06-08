@@ -94,9 +94,11 @@ cat <<EOF
    Logs:        journalctl --user -u hive-os -f
    Restart:     systemctl --user restart hive-os
    Stop:        systemctl --user stop hive-os
+   Update:      ./scripts/hive-os update    (git pull + rebuild + restart)
 
    Phone / other devices over Tailscale (run once, persists):
-     tailscale serve --bg https / http://127.0.0.1:$PORT
+     sudo tailscale set --operator=\$(whoami)   # one-time
+     tailscale serve --bg $PORT
    then open your https MagicDNS URL and install the PWA.
 
    Backups run daily at 03:00 -> ~/.local/share/hive-os/backups
