@@ -329,6 +329,15 @@ class RunWorker:
                 pass
         return "".join(parts).strip()
 
+    def _agent_name(self, run_id: int) -> str | None:
+        """Display name for the agent that produced a run = its profile's name."""
+        db = self.app.state.worker_db
+        row = db.execute(
+            "SELECT pr.name FROM runs r LEFT JOIN profiles pr ON pr.id = r.profile_id WHERE r.id = ?",
+            (run_id,),
+        ).fetchone()
+        return row["name"] if row and row["name"] else None
+
     def _fail_interrupted(self, run_id: int, session_id: int, project_id: int | None, reason: str) -> None:
         """Terminally close a run that lost its in-memory state (shutdown / crash /
         stale heartbeat). Salvages any streamed output as a saved message."""
@@ -339,7 +348,7 @@ class RunWorker:
                 return  # already finalized by someone else
             salvaged = self._reconstruct_text(run_id)
             if salvaged:
-                db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, salvaged))
+                db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, salvaged, self._agent_name(run_id)))
             self.add_event(run_id, session_id, project_id, "run.failed", {"error": reason})
             db.execute(
                 "UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'running'",
@@ -439,7 +448,7 @@ class RunWorker:
                 return
             answer = "".join(chunks).strip() or "Hermes produced no output."
             with self.app.state.db_lock:
-                cur = db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, answer))
+                cur = db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, answer, self._agent_name(run_id)))
                 db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
                 self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
                 self.add_event(run_id, session_id, project_id, "run.completed", {"stop_reason": stop_reason})
@@ -470,7 +479,7 @@ class RunWorker:
             with self.app.state.db_lock:
                 salvaged = self._reconstruct_text(run_id)
                 if salvaged:
-                    db.execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'assistant', ?)", (session_id, salvaged))
+                    db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, salvaged, self._agent_name(run_id)))
                 self.add_event(run_id, session_id, project_id, "run.failed", {"error": "Hermes runner timed out"})
                 db.execute("UPDATE runs SET status = 'failed', error = 'Hermes runner timed out', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
         except Exception as exc:
@@ -985,7 +994,11 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
 
     # ── Tasks (kanban + a dedicated agent thread per task) ───────────
     def task_payload(row: dict[str, Any]) -> dict[str, Any]:
-        return {"id": row["id"], "project_slug": row.get("project_slug"), "session_id": row["session_id"], "title": row["title"], "description": row["description"], "status": row["status"], "assignee": row["assignee"], "created_at": row["created_at"], "updated_at": row["updated_at"]}
+        creator = None
+        if row.get("created_by"):
+            crow = db().execute("SELECT username FROM users WHERE id = ?", (row["created_by"],)).fetchone()
+            creator = crow["username"] if crow else None
+        return {"id": row["id"], "project_slug": row.get("project_slug"), "session_id": row["session_id"], "title": row["title"], "description": row["description"], "status": row["status"], "assignee": row["assignee"], "created_by": creator, "created_at": row["created_at"], "updated_at": row["updated_at"]}
 
     def _task_for_user(task_id: int, user: dict[str, Any]) -> dict[str, Any]:
         row = db().execute("SELECT t.*, p.slug AS project_slug FROM tasks t JOIN projects p ON p.id = t.project_id WHERE t.id = ?", (task_id,)).fetchone()
@@ -1545,21 +1558,24 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     @app.get("/api/sessions/{session_id}/messages")
     def list_messages(session_id: int, user: dict[str, Any] = Depends(current_user)):
         session_for_user(session_id, user)
-        rows = db().execute("SELECT id, role, content, created_at FROM messages WHERE session_id = ? ORDER BY id ASC", (session_id,)).fetchall()
+        rows = db().execute("SELECT id, role, content, author, created_at FROM messages WHERE session_id = ? ORDER BY id ASC", (session_id,)).fetchall()
         return {"messages": [dict(row) for row in rows]}
 
     @app.post("/api/sessions/{session_id}/messages")
     def create_message(session_id: int, payload: MessageCreateRequest, user: dict[str, Any] = Depends(current_user)):
         session_for_user(session_id, user)
-        cur = db().execute("INSERT INTO messages(session_id, role, content) VALUES (?, ?, ?)", (session_id, payload.role, payload.content))
+        author = user["username"] if payload.role == "user" else None
+        cur = db().execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, ?, ?, ?)", (session_id, payload.role, payload.content, author))
         db().execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
         return {"id": cur.lastrowid, "role": payload.role, "content": payload.content}
 
     @app.post("/api/sessions/{session_id}/runs", status_code=202)
     def create_run(session_id: int, payload: RunCreateRequest, user: dict[str, Any] = Depends(current_user)):
         session = session_for_user(session_id, user)
-        profile = profile_for_user(payload.profile_id or session.get("profile_id"), user)
-        db().execute("INSERT INTO messages(session_id, role, content) VALUES (?, 'user', ?)", (session_id, payload.message))
+        # Each collaborator runs with THEIR OWN profile (not the session creator's),
+        # so a shared-project member can work in any task/chat with their own agent.
+        profile = profile_for_user(payload.profile_id, user)
+        db().execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'user', ?, ?)", (session_id, payload.message, user["username"]))
         cur = db().execute(
             """
             INSERT INTO runs(session_id, project_id, user_id, profile_id, runner_id, status, prompt, model, hermes_home)

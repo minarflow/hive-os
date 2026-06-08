@@ -27,9 +27,16 @@ from typing import Callable
 # (version, human description, apply function)
 Migration = tuple[int, str, Callable[[sqlite3.Connection], None]]
 
-# Ordered list of versioned migrations. Empty today: the current schema is the
-# baseline. Append future schema/data changes here.
-MIGRATIONS: list[Migration] = []
+def _add_messages_author(conn: sqlite3.Connection) -> None:
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(messages)").fetchall()}
+    if "author" not in cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN author TEXT")
+
+
+# Ordered list of versioned migrations. Append future schema/data changes here.
+MIGRATIONS: list[Migration] = [
+    (1, "add messages.author (chat sender / agent name)", _add_messages_author),
+]
 
 
 def _ensure_table(conn: sqlite3.Connection) -> None:

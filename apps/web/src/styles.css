@@ -831,6 +831,8 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .task-kickoff { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 16px 10px; padding: 12px 14px; border: 1px dashed var(--ui-stroke-secondary); border-radius: 12px; background: var(--ui-surface-subtle); }
 .task-kickoff .primary-button { flex: 0 0 auto; }
 
+.kanban-by { color: var(--ui-text-secondary); opacity: .8; font-size: .72rem; }
+
 /* Project sharing member toggles */
 .member-toggles { display: flex; flex-direction: column; gap: 2px; margin-top: 8px; }
 .member-toggle { display: flex; align-items: center; gap: 9px; padding: 7px 9px; border-radius: 9px; font-size: .9rem; cursor: pointer; }

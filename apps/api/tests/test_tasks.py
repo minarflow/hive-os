@@ -61,3 +61,32 @@ def test_run_moves_task_to_review(tmp_path):
         run = app.state.worker.claim_run(); await app.state.worker.execute_run(run)
     asyncio.run(run_once())
     assert c.get(f"/api/tasks/{task['id']}", headers=h).json()["status"] == "review"  # set on completion
+
+
+def test_task_payload_includes_creator(tmp_path):
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    c = TestClient(app)
+    token = c.post("/api/setup/bootstrap", json={"username": "kuya", "password": "password123", "profile_name": "Default", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {token}"}
+    slug = c.get("/api/projects", headers=h).json()["projects"][0]["slug"]
+    t = c.post(f"/api/projects/{slug}/tasks", headers=h, json={"title": "T"}).json()
+    assert t["created_by"] == "kuya"
+
+
+def test_collaborator_runs_in_shared_task_with_own_identity(tmp_path):
+    # A shared-project member can work in another member's task, using their own
+    # profile, and their chat message is attributed to them (not the creator).
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    c = TestClient(app)
+    owner = c.post("/api/setup/bootstrap", json={"username": "iqbal", "password": "password123", "profile_name": "Default", "profile_slug": "default"}).json()["token"]
+    oh = {"Authorization": f"Bearer {owner}"}
+    c.post("/api/users", headers=oh, json={"username": "george", "password": "password123", "role": "member", "profile_name": "Default", "profile_slug": "default"})
+    gh = {"Authorization": f"Bearer {c.post('/auth/login', json={'username': 'george', 'password': 'password123'}).json()['token']}"}
+    c.post("/api/projects", headers=oh, json={"slug": "team", "name": "Team", "visibility": "shared"})
+    task = c.post("/api/projects/team/tasks", headers=oh, json={"title": "Build"}).json()
+    c.post("/api/projects/team/invite", headers=oh, json={"username": "george"})
+    sid = task["session_id"]
+    r = c.post(f"/api/sessions/{sid}/runs", headers=gh, json={"message": "hi from george"})
+    assert r.status_code == 202, r.text  # used to 404: run resolved the creator's profile
+    msgs = c.get(f"/api/sessions/{sid}/messages", headers=gh).json()["messages"]
+    assert any(m["role"] == "user" and m["author"] == "george" for m in msgs)

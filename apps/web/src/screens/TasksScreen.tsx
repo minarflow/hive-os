@@ -99,6 +99,7 @@ export function TasksScreen({ token, projects, activeProject, pendingTaskId, onP
         <div className="kanban-cards">{items.map(t => <button className="kanban-card" key={t.id} onClick={() => setSelected(t)}>
           <strong>{t.title}</strong>
           {(t.assignee || t.description) && <small>{t.assignee || t.description.slice(0, 60)}</small>}
+          {t.created_by && <small className="kanban-by">by {t.created_by}</small>}
         </button>)}</div>
       </div>
     })}</div>

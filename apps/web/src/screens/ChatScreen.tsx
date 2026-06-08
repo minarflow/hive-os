@@ -126,5 +126,5 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     <span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(props.token, busyRun)} title="Cancel run">Cancel</button>}
   </div>
   const projSlug = activeSession?.project_slug || props.activeProject?.slug || undefined
-  return <section className="chat-stage"><ChatThread messages={messages} events={events} pendingRunId={busyRun} pendingText={busyRun ? 'Hermes is working…' : ''} token={props.token} slug={projSlug} />{error && <div className="error-bar">{error}</div>}<div className="chat-dock">{controls}<Composer disabled={!props.activeProfile} token={props.token} slug={projSlug} onSubmit={submit} /></div></section>
+  return <section className="chat-stage"><ChatThread messages={messages} events={events} pendingRunId={busyRun} pendingText={busyRun ? 'Working…' : ''} token={props.token} slug={projSlug} agentName={activeSession?.profile_name || props.activeProfile?.name || undefined} />{error && <div className="error-bar">{error}</div>}<div className="chat-dock">{controls}<Composer disabled={!props.activeProfile} token={props.token} slug={projSlug} onSubmit={submit} /></div></section>
 }

@@ -53,7 +53,7 @@ export function Composer({ disabled, token, slug, onSubmit }: { disabled?: boole
   return <form className="composer" onSubmit={submit} onDragOver={e => { if (slug) e.preventDefault() }} onDrop={e => { if (slug) { e.preventDefault(); void handleFiles(e.dataTransfer.files) } }}>
     {matches.length > 0 && <div className="slash-popover">{matches.map(c => <button type="button" key={c.name} onClick={() => setDraft(c.name + ' ')}><strong>{c.name}</strong><span>{c.description}</span><em>{c.surface}</em></button>)}</div>}
     {atts.length > 0 && <div className="composer-atts">{atts.map((a, i) => <span className="composer-att" key={i}><IconFile size={13} />{a.name}<button type="button" aria-label="Remove" onClick={() => setAtts(cur => cur.filter((_, j) => j !== i))}><IconClose size={12} /></button></span>)}</div>}
-    <textarea ref={taRef} rows={1} placeholder="Message Hermes in this project…" value={draft}
+    <textarea ref={taRef} rows={1} placeholder="Message your agent in this project…" value={draft}
       onChange={e => setDraft(e.target.value)}
       onPaste={e => { const files = [...e.clipboardData.items].filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean) as File[]; if (files.length && slug) { e.preventDefault(); void handleFiles(files) } }}
       onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); e.currentTarget.form?.requestSubmit() } }} />
