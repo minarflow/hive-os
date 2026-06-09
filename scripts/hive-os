@@ -88,10 +88,23 @@ EOF
     load_config
     REPO="${HIVEOS_REPO_ROOT:-$ROOT}"
     echo "==> Pulling latest ($REPO)"
-    git -C "$REPO" pull --ff-only
+    # The build step can rewrite tracked lockfiles (npm/uv churn), which would
+    # otherwise block the next fast-forward pull. Discard that self-inflicted
+    # churn before pulling so the update never wedges itself.
+    git -C "$REPO" checkout -- apps/web/package-lock.json apps/api/uv.lock 2>/dev/null || true
+    if ! git -C "$REPO" pull --ff-only; then
+      echo "✗ git pull failed — local changes are blocking the update:" >&2
+      git -C "$REPO" status --short >&2
+      echo "   If none of those are edits you made on purpose, run:" >&2
+      echo "     git -C \"$REPO\" checkout -- . && hive-os update" >&2
+      exit 1
+    fi
     echo "==> Rebuilding"
     ( cd "$REPO/apps/api" && uv sync )
-    ( cd "$REPO/apps/web" && npm install && npm run build )
+    # npm ci installs exactly from the lockfile without rewriting it (npm install
+    # can bump transitive entries and dirty the tree). Falls back to install if
+    # the lockfile is out of sync with package.json.
+    ( cd "$REPO/apps/web" && { npm ci || npm install; } && npm run build )
     # Restart whichever service is installed so the new code (and DB migrations) load.
     echo "==> Restarting"
     if svc restart 2>/dev/null; then
