@@ -1,9 +1,11 @@
 import React from 'react'
 import { createRun, cancelRun, listEvents } from '../api/runs'
 import { createSession, listMessages } from '../api/sessions'
+import { draftWikiNote, commitWikiNote } from '../api/wiki'
 import { useEventStream } from '../hooks/useEventStream'
-import type { ChatMessage, ChatSession, Profile, Project, RunEvent } from '../types'
+import type { ChatMessage, ChatSession, Profile, Project, RunEvent, WikiDraft } from '../types'
 import { ChatThread } from '../components/chat/ChatThread'
+import { WikiNotePreview } from '../components/wiki/WikiNotePreview'
 import { Composer } from '../components/chat/Composer'
 import { Dropdown } from '../components/ui/Dropdown'
 import { IconProjects, IconAgents } from '../components/shell/icons'
@@ -28,7 +30,23 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
   const [busyRun, setBusyRun] = React.useState<number | null>(null)
   const [localSession, setLocalSession] = React.useState<ChatSession | null>(null)
   const [error, setError] = React.useState('')
+  const [wikiDraft, setWikiDraft] = React.useState<WikiDraft | null>(null)
+  const [savingWiki, setSavingWiki] = React.useState(false)
+  const seenDraftSeq = React.useRef(0)
   const activeSession = localSession || props.activeSession
+
+  // Open the preview when a wiki.draft event arrives on this session's stream.
+  React.useEffect(() => {
+    const ev = [...events].reverse().find(e => e.type === 'wiki.draft' && e.seq > seenDraftSeq.current)
+    if (ev) { seenDraftSeq.current = ev.seq; setWikiDraft(ev.payload as unknown as WikiDraft); setSavingWiki(false) }
+  }, [events])
+
+  async function startWikiDraft() {
+    if (!activeSession) return
+    setSavingWiki(true); setError('')
+    try { await draftWikiNote(props.token, activeSession.id, props.activeProfile?.id) }
+    catch (e) { setSavingWiki(false); setError(String(e)) }
+  }
 
   const loadMessages = React.useCallback(async (sessionId?: number) => {
     const id = sessionId || activeSession?.id
@@ -124,7 +142,19 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     </label>
     <span className="ctl-divider" />
     <span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(props.token, busyRun)} title="Cancel run">Cancel</button>}
+    <span className="ctl-divider" />
+    <button className="ghost-button" onClick={() => void startWikiDraft()} disabled={!activeSession || savingWiki} title="Distill this conversation into a wiki note">📑 {savingWiki ? 'Preparing…' : 'Save to wiki'}</button>
   </div>
   const projSlug = activeSession?.project_slug || props.activeProject?.slug || undefined
-  return <section className="chat-stage"><ChatThread messages={messages} events={events} pendingRunId={busyRun} pendingText={busyRun ? 'Working…' : ''} token={props.token} slug={projSlug} agentName={activeSession?.profile_name || props.activeProfile?.name || undefined} />{error && <div className="error-bar">{error}</div>}<div className="chat-dock">{controls}<Composer disabled={!props.activeProfile} token={props.token} slug={projSlug} onSubmit={submit} /></div></section>
+  return <section className="chat-stage"><ChatThread messages={messages} events={events} pendingRunId={busyRun} pendingText={busyRun ? 'Working…' : ''} token={props.token} slug={projSlug} agentName={activeSession?.profile_name || props.activeProfile?.name || undefined} />{error && <div className="error-bar">{error}</div>}<div className="chat-dock">{controls}<Composer disabled={!props.activeProfile} token={props.token} slug={projSlug} onSubmit={submit} /></div>
+    {wikiDraft && <WikiNotePreview
+      draft={wikiDraft}
+      onCancel={() => setWikiDraft(null)}
+      onSave={async (path, content, mode) => {
+        if (!activeSession) return
+        await commitWikiNote(props.token, activeSession.id, path, content, mode)
+        setWikiDraft(null)
+        notify('Saved to wiki', path)
+      }} />}
+  </section>
 }
