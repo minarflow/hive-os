@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from fastapi.testclient import TestClient
 from hive_os_api.main import create_app
 
@@ -207,14 +208,15 @@ def test_successful_run_appends_auto_log(tmp_path):
     c = TestClient(app)
     tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
     h = {"Authorization": f"Bearer {tok}"}
-    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
     c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "build login"})
 
     async def run_once():
         r = app.state.worker.claim_run(); assert r; await app.state.worker.execute_run(r)
     asyncio.run(run_once())
 
-    log = (tmp_path / "ws" / "users" / "k" / "wiki" / "log.md")
+    log = Path(proj["path"]) / "wiki" / "log.md"
     assert log.exists()
     assert "Implemented login and added tests." in log.read_text(encoding="utf-8")
     assert FakeMgr._proc.calls == 2   # main turn + summarize turn
@@ -245,7 +247,8 @@ def test_auto_log_failure_does_not_fail_run(tmp_path):
     c = TestClient(app)
     tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
     h = {"Authorization": f"Bearer {tok}"}
-    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
     c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "go"})
 
     async def run_once():
@@ -279,7 +282,8 @@ def test_wiki_draft_run_emits_draft_event(tmp_path):
     c = TestClient(app)
     tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
     h = {"Authorization": f"Bearer {tok}"}
-    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
     r = c.post(f"/api/sessions/{sid}/wiki-note/draft", headers=h, json={"profile_id": None})
     assert r.status_code == 202
 
@@ -302,16 +306,56 @@ def test_wiki_note_commit_writes_and_merges(tmp_path):
     c = TestClient(app)
     tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
     h = {"Authorization": f"Bearer {tok}"}
-    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
+    note = Path(proj["path"]) / "wiki" / "perf" / "caching.md"
 
     r = c.post(f"/api/sessions/{sid}/wiki-note/commit", headers=h,
                json={"path": "perf/caching.md", "content": "# Caching\nUse Redis.", "mode": "new"})
     assert r.status_code == 200
-    body = c.get("/api/wiki/file", headers=h, params={"path": "perf/caching.md"}).json()
-    assert "Use Redis." in body["content"]
+    assert "Use Redis." in note.read_text(encoding="utf-8")
 
     r2 = c.post(f"/api/sessions/{sid}/wiki-note/commit", headers=h,
                 json={"path": "perf/caching.md", "content": "## Update\nAdd TTL.", "mode": "append"})
     assert r2.status_code == 200
-    merged = c.get("/api/wiki/file", headers=h, params={"path": "perf/caching.md"}).json()["content"]
+    merged = note.read_text(encoding="utf-8")
     assert "Use Redis." in merged and "Add TTL." in merged
+
+
+def test_projectless_chat_has_no_wiki(tmp_path):
+    # Wiki is project-scoped: a chat without a project can't be saved to a wiki,
+    # and produces no auto-log (no hidden personal wiki).
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+
+    class FakeProc:
+        async def load_session(self, *a): raise Exception("new")
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Did it."}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]   # no project_slug
+
+    # Draft is rejected for a project-less chat.
+    r = c.post(f"/api/sessions/{sid}/wiki-note/draft", headers=h, json={"profile_id": None})
+    assert r.status_code == 400
+
+    # A normal run completes but writes no log anywhere under the workspace.
+    c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "go"})
+
+    async def run_once():
+        run = app.state.worker.claim_run(); await app.state.worker.execute_run(run)
+    asyncio.run(run_once())
+
+    assert not list((tmp_path / "ws").rglob("log.md"))

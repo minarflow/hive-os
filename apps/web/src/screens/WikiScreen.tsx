@@ -1,12 +1,12 @@
 import React from 'react'
 import type { Project } from '../types'
 import { WorkspaceTree } from '../components/files/WorkspaceTree'
-import { wikiFs, projectFs } from '../api/fsAdapter'
-import { listAll as wikiListAll, type WikiNoteRaw } from '../api/wiki'
+import { projectFs } from '../api/fsAdapter'
+import { type WikiNoteRaw } from '../api/wiki'
 import { projectWikiAll } from '../api/files'
 import { buildWikiModel } from '../components/wiki/wikiGraph'
 import { WikiSearch } from '../components/wiki/WikiSearch'
-import { IconWiki, IconFolder, IconChevronRight } from '../components/shell/icons'
+import { IconFolder, IconChevronRight } from '../components/shell/icons'
 
 const cleanName = (name: string) => name.replace(/\s*\(private\)\s*$/i, '')
 
@@ -16,7 +16,10 @@ const WikiNote = React.lazy(() => import('../components/wiki/WikiNote').then(m =
 type Tab = 'files' | 'graph' | 'search'
 
 export function WikiScreen({ token, projects }: { token: string; projects: Project[] }) {
-  const [sourceKey, setSourceKey] = React.useState<string>('')   // '' = My Wiki, else project slug
+  // Wiki is project-scoped: a private project is already your personal space, so
+  // there is no separate "My Wiki". Default to the first project; fall back to it
+  // whenever the chosen slug isn't (or is no longer) available.
+  const [sourceKey, setSourceKey] = React.useState<string>('')
   const [tab, setTab] = React.useState<Tab>('files')
   const [openNote, setOpenNote] = React.useState<string | null>(null)
   const [notes, setNotes] = React.useState<WikiNoteRaw[]>([])
@@ -30,9 +33,12 @@ export function WikiScreen({ token, projects }: { token: string; projects: Proje
     return () => window.removeEventListener('click', close)
   }, [pickerOpen])
 
-  const selected = projects.find(p => p.slug === sourceKey) || null
-  const fs = React.useMemo(() => (selected ? projectFs(token, selected.slug, 'wiki') : wikiFs(token)), [token, selected?.slug])
-  const loadAll = React.useCallback(() => (selected ? projectWikiAll(token, selected.slug) : wikiListAll(token)), [token, selected?.slug])
+  const selected = projects.find(p => p.slug === sourceKey) || projects[0] || null
+  const fs = React.useMemo(() => (selected ? projectFs(token, selected.slug, 'wiki') : null), [token, selected?.slug])
+  const loadAll = React.useCallback(
+    () => (selected ? projectWikiAll(token, selected.slug) : Promise.resolve({ notes: [] as WikiNoteRaw[] })),
+    [token, selected?.slug],
+  )
 
   React.useEffect(() => { setOpenNote(null) }, [fs])
   React.useEffect(() => {
@@ -44,23 +50,26 @@ export function WikiScreen({ token, projects }: { token: string; projects: Proje
   const mdNotes = React.useMemo(() => notes.filter(n => /\.(md|markdown)$/i.test(n.path)), [notes])
   const model = React.useMemo(() => buildWikiModel(mdNotes), [mdNotes])
   const isMd = (name: string) => /\.(md|markdown)$/i.test(name)
-  const title = selected ? `${selected.name} · wiki` : 'My Wiki'
+  const title = selected ? `${selected.name} · wiki` : 'Wiki'
   const reload = () => setVersion(v => v + 1)
   const openInFiles = (p: string) => { setOpenNote(p); setTab('files') }
+
+  if (!selected) {
+    return <section className="wiki-view"><div className="wiki-placeholder"><p className="muted">No project yet. Create a project to start its wiki — each project (private by default) is your personal space.</p></div></section>
+  }
 
   return <section className="wiki-view">
     <div className="wiki-switch">
       <div className="wiki-picker" onClick={e => e.stopPropagation()}>
         <button className="wiki-picker-btn" onClick={() => setPickerOpen(o => !o)}>
-          <span className="wp-ico">{selected ? <IconFolder size={16} /> : <IconWiki size={16} />}</span>
-          <span className="wp-label">{selected ? cleanName(selected.name) : 'My Wiki'}</span>
-          {selected?.visibility === 'shared' && <span className="wp-badge shared">shared</span>}
+          <span className="wp-ico"><IconFolder size={16} /></span>
+          <span className="wp-label">{cleanName(selected.name)}</span>
+          {selected.visibility === 'shared' && <span className="wp-badge shared">shared</span>}
           <span className="wp-caret"><IconChevronRight size={14} /></span>
         </button>
         {pickerOpen && <div className="wiki-picker-menu">
-          <button className={`wp-item ${!selected ? 'active' : ''}`} onClick={() => { setSourceKey(''); setPickerOpen(false) }}><IconWiki size={16} /><span className="wp-label">My Wiki</span></button>
-          {projects.length > 0 && <div className="wp-group">Project wikis</div>}
-          {projects.map(p => <button key={p.slug} className={`wp-item ${sourceKey === p.slug ? 'active' : ''}`} onClick={() => { setSourceKey(p.slug); setPickerOpen(false) }}>
+          <div className="wp-group">Project wikis</div>
+          {projects.map(p => <button key={p.slug} className={`wp-item ${selected.slug === p.slug ? 'active' : ''}`} onClick={() => { setSourceKey(p.slug); setPickerOpen(false) }}>
             <IconFolder size={16} /><span className="wp-label">{cleanName(p.name)}</span><span className={`wp-badge ${p.visibility}`}>{p.visibility}</span>
           </button>)}
         </div>}
@@ -70,10 +79,10 @@ export function WikiScreen({ token, projects }: { token: string; projects: Proje
         <button className={tab === 'graph' ? 'active' : ''} onClick={() => setTab('graph')}>Graph</button>
         <button className={tab === 'search' ? 'active' : ''} onClick={() => setTab('search')}>Search</button>
       </div>
-      {selected?.visibility === 'shared' && <span className="wiki-hint">Shared · all members edit</span>}
+      {selected.visibility === 'shared' && <span className="wiki-hint">Shared · all members edit</span>}
     </div>
 
-    {tab === 'files' && <div className="wiki-files">
+    {tab === 'files' && fs && <div className="wiki-files">
       <WorkspaceTree key={title} fs={fs} title={title} className="wiki-tree" onOpenFile={setOpenNote} onChange={reload} activePath={openNote} fileFilter={isMd} defaultExt="md" />
       <div className="wiki-main">
         {openNote

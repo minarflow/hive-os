@@ -355,18 +355,15 @@ class RunWorker:
         return row["name"] if row and row["name"] else None
 
     def _wiki_root_for_run(self, run: dict[str, Any]) -> Path | None:
-        """Project thread -> <project.path>/wiki ; personal thread -> users/<name>/wiki."""
+        """The project's wiki. Wiki is project-scoped — a project-less (ad-hoc)
+        chat has no wiki and is not logged."""
+        if not run["project_id"]:
+            return None
         db = self.app.state.worker_db
-        cfg = self.app.state.config
-        if run["project_id"]:
-            row = db.execute("SELECT path FROM projects WHERE id = ?", (run["project_id"],)).fetchone()
-            if row and row["path"]:
-                return Path(row["path"]) / "wiki"
-            return None
-        urow = db.execute("SELECT username FROM users WHERE id = ?", (run["user_id"],)).fetchone()
-        if not urow:
-            return None
-        return Path(cfg["workspace_root"]) / "users" / urow["username"] / "wiki"
+        row = db.execute("SELECT path FROM projects WHERE id = ?", (run["project_id"],)).fetchone()
+        if row and row["path"]:
+            return Path(row["path"]) / "wiki"
+        return None
 
     def _autolog_enabled(self, project_id: int | None) -> bool:
         if project_id is None:
@@ -1776,18 +1773,21 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         return {"run_id": run_id, "session_id": session_id, "status": "queued"}
 
     def _session_wiki_root(session: dict[str, Any], user: dict[str, Any]) -> Path | None:
-        """Project thread -> the project's wiki; personal thread -> the user's wiki."""
-        if session["project_id"]:
-            prow = db().execute("SELECT slug FROM projects WHERE id = ?", (session["project_id"],)).fetchone()
-            return _project_root(prow["slug"], user) / "wiki" if prow else None
-        return _wiki_root(user)
+        """The session's project wiki. Wiki is project-scoped — a project-less chat
+        has no wiki target."""
+        if not session["project_id"]:
+            return None
+        prow = db().execute("SELECT slug FROM projects WHERE id = ?", (session["project_id"],)).fetchone()
+        return _project_root(prow["slug"], user) / "wiki" if prow else None
 
     @app.post("/api/sessions/{session_id}/wiki-note/draft", status_code=202)
     def wiki_note_draft(session_id: int, payload: WikiDraftRequest, user: dict[str, Any] = Depends(current_user)):
         session = session_for_user(session_id, user)
-        profile = profile_for_user(payload.profile_id, user)
         wiki_root = _session_wiki_root(session, user)
-        notes = fsapi.walk_files(wiki_root) if wiki_root and Path(wiki_root).is_dir() else []
+        if wiki_root is None:
+            raise HTTPException(status_code=400, detail="This chat has no project, so there is no wiki to save to.")
+        profile = profile_for_user(payload.profile_id, user)
+        notes = fsapi.walk_files(wiki_root) if Path(wiki_root).is_dir() else []
         prompt = wiki_memory.build_draft_prompt(notes)
         cur = db().execute(
             """
