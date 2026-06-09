@@ -25,7 +25,7 @@ export function AppRunner({ token, slug, onClose }: { token: string; slug: strin
   return <div className="modal-scrim" onClick={onClose}><div className="modal-card app-runner" onClick={e => e.stopPropagation()}>
     <div className="app-runner-head"><strong>Run &amp; Preview app</strong><button className="icon-button" onClick={onClose} aria-label="Close">✕</button></div>
     <div className="app-runner-bar">
-      <input className="ui-select app-dir" value={dir} onChange={e => setDir(e.target.value)} placeholder="folder (root)" title="Folder tempat command dijalankan (kosong = root project)" disabled={status.running} />
+      <input className="ui-select app-dir" value={dir} onChange={e => setDir(e.target.value)} placeholder="folder (root)" title="Folder the command runs in (empty = project root)" disabled={status.running} />
       <input className="ui-select" value={command} onChange={e => setCommand(e.target.value)} placeholder="npm run dev" disabled={status.running} />
       <input className="ui-select app-port" type="number" value={port} onChange={e => setPort(Number(e.target.value) || 5180)} title="Server harus listen di port ini ($PORT)" disabled={status.running} />
       {status.running

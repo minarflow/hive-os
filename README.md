@@ -1,29 +1,44 @@
 # Hive OS
 
-Self-hosted, multi-user agent workspace — chat, tasks, files, wiki, and run-and-preview, driven by your own Hermes install.
+Self-hosted, multi-user **agent workspace** — chat, tasks, files, wiki, and
+run-and-preview, where your team and its AI agents work together in one private
+space. Bring your own agent: **Claude Code, Codex, Gemini CLI, or Hermes**.
 
-![Hive OS](docs/screenshot.png)
+![Hive OS chat](docs/screenshots/01-chat.png)
 
 ## What it is
 
-Hive OS is a **Hermes-first** team workspace you run as a background service and reach from any browser (or phone via Tailscale). It ships as a FastAPI backend + React PWA.
+A team workspace you self-host as a background service and reach from any browser
+(or phone via Tailscale). FastAPI backend + React PWA. It's a **control plane** —
+it drives agents over the Agent Client Protocol (ACP), so you plug in whichever
+agent you (and each teammate) prefer.
 
 Features:
-- **Chat with agents** — streaming responses, tool-activity cards, slash commands, and session continuity via the Agent Client Protocol (ACP).
-- **Tasks (kanban)** — each task has a transparent, steerable agent thread. Agents move tasks to Review; a human marks them Done.
-- **Files** — per-project file browser (read/write, mkdir, rename, delete) and an Artifacts view for agent deliverables.
-- **Wiki** — per-project and global wiki with tree editing.
-- **Accounts & teams** — username/password sign-in, roles (admin/member), and invite links.
-- **PWA** — installable on desktop or phone; works great over Tailscale.
+- **Multi-runner** — pick a runner per profile: **Claude Code, Codex, Gemini CLI, or Hermes**. Credentials auto-seed from the host so a new profile works out of the box.
+- **Chat with agents** — streaming responses, tool-activity cards, slash commands, session continuity. Messages show real sender + agent names for clear collaboration.
+- **Tasks (kanban)** — each task has a transparent, steerable agent thread. Agents move tasks to Review; a human clicks **Approve & Done**.
+- **Files** — per-project browser with edit + live HTML/Markdown **preview**, plus **Run & Preview** for dev servers.
+- **Wiki** — linked notes (`[[Note]]`) with an auto-updating graph.
+- **Teams & sharing** — roles, invite links, and per-project member toggles (share to exactly who you choose).
+- **Themes & PWA** — six themes; installable on desktop or phone.
+
+## Screenshots
+
+| Tasks (kanban) | Files + live preview |
+|---|---|
+| ![Tasks](docs/screenshots/02-tasks.png) | ![Files](docs/screenshots/03-files.png) |
+| **Projects & sharing** | **Agents & runners** |
+| ![Projects](docs/screenshots/05-projects.png) | ![Agents](docs/screenshots/06-agents.png) |
+| **Wiki** | **Themes & settings** |
+| ![Wiki](docs/screenshots/04-wiki.png) | ![Settings](docs/screenshots/07-settings.png) |
 
 ## Requirements
 
-- Linux
-- [`uv`](https://docs.astral.sh/uv/)
-- Node.js / `npm`
-- A working **Hermes CLI** install with credentials (`~/.hermes`)
+- **Linux, macOS, or Windows** (no Docker required)
+- [`uv`](https://docs.astral.sh/uv/) and Node.js / `npm`
+- At least one **agent CLI** installed + logged in: Claude Code, Codex, Gemini CLI, or Hermes
 
-See [docs/installation.md](docs/installation.md) for full details.
+See [docs/installation.md](docs/installation.md) for Linux, macOS, and Windows install steps.
 
 ## Quickstart
 
@@ -43,16 +58,14 @@ systemctl --user restart hive-os
 systemctl --user stop hive-os
 ```
 
-## Bring your own Hermes
+## Bring your own agent
 
-Hive OS ships **no credentials**. On startup it looks for an existing `hermes` on your `PATH` and a populated `~/.hermes` directory. If found, it reuses them. If not, the install script prints a warning and the app shows a banner guiding you through setup.
-
-Two environment variables let you override the auto-detected paths:
-
-| Variable | Effect |
-|---|---|
-| `HIVEOS_SOURCE_HERMES_HOME` | Path to the Hermes home to copy credentials from when creating new profiles |
-| `HIVEOS_HERMES_BIN` | Explicit path to the `hermes` binary |
+Hive OS ships **no credentials**. Each profile picks a runner (Claude Code,
+Codex, Gemini CLI, or Hermes); when you create the profile, Hive copies that
+agent's login from the host (`~/.claude`, `~/.codex`, `~/.hermes`, …) into the
+profile so it's authenticated out of the box, and refreshes it before each run
+to follow token rotation. You stay logged into the agent's own CLI as usual —
+Hive never asks for or stores provider passwords.
 
 ## Security / trust model
 
@@ -63,7 +76,8 @@ Do **not** expose Hive OS to untrusted users without adding OS-level isolation (
 ## Tailscale / phone access
 
 ```bash
-tailscale serve --bg https / http://127.0.0.1:8765
+sudo tailscale set --operator=$(whoami)   # one-time
+tailscale serve --bg 8765
 ```
 
 Open your HTTPS MagicDNS URL on any device and install the PWA.

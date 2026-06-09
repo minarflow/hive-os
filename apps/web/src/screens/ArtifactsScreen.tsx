@@ -88,7 +88,7 @@ export function ArtifactsScreen({ token, projects, activeProject, pendingFile, o
       <div className="files-resize" onMouseDown={startResize} role="separator" aria-label="Resize file tree" />
       <div className="files-main">
         {path && fs ? <FileView key={path} token={token} slug={slug} path={path} fs={fs} onClose={() => setPath(null)} />
-          : <div className="files-empty"><p className="muted">Pilih file dari kiri buat lihat / edit. File HTML bisa di-Preview (render), Markdown juga.</p></div>}
+          : <div className="files-empty"><p className="muted">Pick a file on the left to view / edit. HTML files get a live Preview (rendered); Markdown too.</p></div>}
       </div>
     </div>
   </section>
