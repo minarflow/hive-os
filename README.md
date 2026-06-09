@@ -61,11 +61,9 @@ systemctl --user stop hive-os
 ## Bring your own agent
 
 Hive OS ships **no credentials**. Each profile picks a runner (Claude Code,
-Codex, Gemini CLI, or Hermes); when you create the profile, Hive copies that
-agent's login from the host (`~/.claude`, `~/.codex`, `~/.hermes`, …) into the
-profile so it's authenticated out of the box, and refreshes it before each run
-to follow token rotation. You stay logged into the agent's own CLI as usual —
-Hive never asks for or stores provider passwords.
+Codex, Gemini CLI, or Hermes). Log into that agent's own CLI the way you normally
+would — Hive uses your existing login and **never asks for or stores provider
+passwords**. Pick the runner when you create a profile and it's ready to use.
 
 ## Security / trust model
 
