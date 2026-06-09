@@ -119,8 +119,8 @@ hive-os logs
 hive-os stop
 ```
 
-Data lives under `~/.local/share/hive-os`. Agent credentials are read from the
-host (`~/.claude`, `~/.codex`, `~/.hermes`) — log into the agent's CLI as usual.
+Data lives under `~/.local/share/hive-os`. Hive uses your existing Claude Code /
+Codex / Hermes — just be logged into the agent's CLI.
 
 ## Windows install (no Docker)
 
@@ -144,9 +144,8 @@ Get-Content "$env:LOCALAPPDATA\hive-os\logs\hive-os.log" -Wait   # logs
 git pull; powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1
 ```
 
-Data lives under `%LOCALAPPDATA%\hive-os`. Agent credentials are read from the
-host (`%USERPROFILE%\.claude`, `%USERPROFILE%\.codex`) — log into the agent's CLI
-as usual. (Hermes is Linux-first historically but ships Windows support.)
+Data lives under `%LOCALAPPDATA%\hive-os`. Hive uses your existing Claude Code /
+Codex / Hermes — just be logged into the agent's CLI.
 
 ## Remote access & team sharing (Tailscale)
 
