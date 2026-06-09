@@ -352,7 +352,7 @@ class RunWorker:
                 return  # already finalized by someone else
             salvaged = self._reconstruct_text(run_id)
             if salvaged:
-                db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, salvaged, self._agent_name(run_id)))
+                db.execute("INSERT INTO messages(session_id, role, content, author, run_id) VALUES (?, 'assistant', ?, ?, ?)", (session_id, salvaged, self._agent_name(run_id), run_id))
             self.add_event(run_id, session_id, project_id, "run.failed", {"error": reason})
             db.execute(
                 "UPDATE runs SET status = 'failed', error = ?, finished_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'running'",
@@ -489,7 +489,7 @@ class RunWorker:
                 if detail:
                     answer += f"\n\nAgent error log:\n```\n{detail}\n```"
             with self.app.state.db_lock:
-                cur = db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, answer, self._agent_name(run_id)))
+                cur = db.execute("INSERT INTO messages(session_id, role, content, author, run_id) VALUES (?, 'assistant', ?, ?, ?)", (session_id, answer, self._agent_name(run_id), run_id))
                 db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
                 self.add_event(run_id, session_id, project_id, "message.complete", {"message_id": cur.lastrowid, "text": answer})
                 self.add_event(run_id, session_id, project_id, "run.completed", {"stop_reason": stop_reason})
@@ -520,7 +520,7 @@ class RunWorker:
             with self.app.state.db_lock:
                 salvaged = self._reconstruct_text(run_id)
                 if salvaged:
-                    db.execute("INSERT INTO messages(session_id, role, content, author) VALUES (?, 'assistant', ?, ?)", (session_id, salvaged, self._agent_name(run_id)))
+                    db.execute("INSERT INTO messages(session_id, role, content, author, run_id) VALUES (?, 'assistant', ?, ?, ?)", (session_id, salvaged, self._agent_name(run_id), run_id))
                 self.add_event(run_id, session_id, project_id, "run.failed", {"error": "Hermes runner timed out"})
                 db.execute("UPDATE runs SET status = 'failed', error = 'Hermes runner timed out', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
         except Exception as exc:
@@ -1632,11 +1632,43 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         db().execute("DELETE FROM sessions WHERE id = ?", (session_id,))
         return {"ok": True, "id": session_id}
 
+    def _run_activity(run_id: int) -> list[dict[str, Any]]:
+        """Compact tool/subagent activity for a finished run, from its persisted
+        events — so the agent's work (e.g. parallel subagents) stays visible after
+        the run instead of only during it. 'Task' tools are subagent spawns."""
+        rows = db().execute(
+            "SELECT type, payload FROM events WHERE run_id = ? AND type IN ('tool.start','tool.complete') ORDER BY seq",
+            (run_id,),
+        ).fetchall()
+        order: list[str] = []
+        items: dict[str, dict[str, Any]] = {}
+        for r in rows:
+            p = json.loads(r["payload"] or "{}")
+            tid = str(p.get("id") or "")
+            if not tid:
+                continue
+            if r["type"] == "tool.start":
+                if tid not in items:
+                    order.append(tid)
+                title = str(p.get("title") or "tool")
+                items[tid] = {"title": title, "status": "running", "subagent": title.strip().lower() == "task"}
+            elif tid in items:
+                items[tid]["status"] = str(p.get("status") or "completed")
+        return [items[t] for t in order]
+
     @app.get("/api/sessions/{session_id}/messages")
     def list_messages(session_id: int, user: dict[str, Any] = Depends(current_user)):
         session_for_user(session_id, user)
-        rows = db().execute("SELECT id, role, content, author, created_at FROM messages WHERE session_id = ? ORDER BY id ASC", (session_id,)).fetchall()
-        return {"messages": [dict(row) for row in rows]}
+        rows = db().execute("SELECT id, role, content, author, run_id, created_at FROM messages WHERE session_id = ? ORDER BY id ASC", (session_id,)).fetchall()
+        out = []
+        for row in rows:
+            m = dict(row)
+            if m.get("role") == "assistant" and m.get("run_id"):
+                act = _run_activity(m["run_id"])
+                if act:
+                    m["activity"] = act
+            out.append(m)
+        return {"messages": out}
 
     @app.post("/api/sessions/{session_id}/messages")
     def create_message(session_id: int, payload: MessageCreateRequest, user: dict[str, Any] = Depends(current_user)):

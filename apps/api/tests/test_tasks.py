@@ -135,3 +135,46 @@ def test_collaborators_get_independent_agent_sessions(tmp_path):
     asst = [m for m in c.get(f"/api/sessions/{sid}/messages", headers=gh).json()["messages"] if m["role"] == "assistant"]
     assert len(asst) == 2
     assert all("no output" not in m["content"].lower() for m in asst)  # both agents actually responded
+
+
+def test_assistant_message_carries_run_id_and_activity(tmp_path):
+    # The agent's tool/subagent activity persists on the saved message so the
+    # swarm stays visible after the run. 'Task' tools are flagged as subagents.
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+
+    class FakeProc:
+        async def load_session(self, *a): raise Exception("new")
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            on_update({"sessionUpdate": "tool_call", "toolCallId": "t1", "title": "Task"})
+            on_update({"sessionUpdate": "tool_call", "toolCallId": "t2", "title": "Write fib.py"})
+            on_update({"sessionUpdate": "tool_call_update", "toolCallId": "t2", "status": "completed"})
+            on_update({"sessionUpdate": "tool_call_update", "toolCallId": "t1", "status": "completed"})
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "done"}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "go"})
+
+    async def run_once():
+        r = app.state.worker.claim_run(); assert r; await app.state.worker.execute_run(r)
+    asyncio.run(run_once())
+
+    msgs = c.get(f"/api/sessions/{sid}/messages", headers=h).json()["messages"]
+    asst = [m for m in msgs if m["role"] == "assistant"][-1]
+    assert asst["run_id"]
+    titles = {a["title"]: a for a in asst.get("activity", [])}
+    assert "Task" in titles and titles["Task"]["subagent"] is True      # subagent flagged
+    assert "Write fib.py" in titles and titles["Write fib.py"]["subagent"] is False
+    assert titles["Task"]["status"] == "completed"
