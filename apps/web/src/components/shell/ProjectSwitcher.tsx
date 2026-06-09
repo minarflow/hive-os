@@ -18,7 +18,7 @@ export function ProjectSwitcher({ projects, activeProject, onSelect }: { project
   return <div className="wiki-picker proj-switch" onClick={e => e.stopPropagation()}>
     <button className="wiki-picker-btn" onClick={() => setOpen(o => !o)}>
       <span className="wp-ico"><IconFolder size={16} /></span>
-      <span className="wp-label">{activeProject ? clean(activeProject.name) : 'No project'}</span>
+      <span className="wp-label">{activeProject ? clean(activeProject.name) : (projects.length ? 'Select project' : 'No projects yet')}</span>
       {activeProject && <span className={`wp-badge ${activeProject.visibility}`}>{activeProject.visibility}</span>}
       <span className="wp-caret"><IconChevronRight size={14} /></span>
     </button>

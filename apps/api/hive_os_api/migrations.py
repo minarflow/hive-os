@@ -51,12 +51,25 @@ def _add_runs_kind(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE runs ADD COLUMN kind TEXT NOT NULL DEFAULT 'chat'")
 
 
+def _rename_private_projects_to_personal(conn: sqlite3.Connection) -> None:
+    # The auto-provisioned personal project was labelled "<user> (private)", which
+    # read like a sharing setting. Relabel it "<user> (personal)" so it clearly
+    # reads as the user's own space. Visibility (the actual access control) is a
+    # separate column and is untouched.
+    if not conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").fetchone():
+        return
+    conn.execute(
+        "UPDATE projects SET name = REPLACE(name, ' (private)', ' (personal)') WHERE name LIKE '% (private)'"
+    )
+
+
 # Ordered list of versioned migrations. Append future schema/data changes here.
 MIGRATIONS: list[Migration] = [
     (1, "add messages.author (chat sender / agent name)", _add_messages_author),
     (2, "add profiles.runner_id", _add_profiles_runner_id),
     (3, "add messages.run_id (links assistant message to its run)", _add_messages_run_id),
     (4, "add runs.kind (chat | wiki_draft)", _add_runs_kind),
+    (5, "relabel '<user> (private)' personal projects to '(personal)'", _rename_private_projects_to_personal),
 ]
 
 

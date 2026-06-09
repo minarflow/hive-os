@@ -72,7 +72,7 @@ def provision_private_project(conn: sqlite3.Connection, cfg: dict[str, Any], use
     path = str(scaffold_project_dir(cfg, slug))
     cur = conn.execute(
         "INSERT INTO projects(slug, name, path, owner_user_id, visibility) VALUES (?, ?, ?, ?, 'private')",
-        (slug, f"{user['username']} (private)", path, user["id"]),
+        (slug, f"{user['username']} (personal)", path, user["id"]),
     )
     project_id = cur.lastrowid
     ensure_member(conn, project_id, user["id"], "owner")
