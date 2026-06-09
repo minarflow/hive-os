@@ -15,7 +15,7 @@ const cleanName = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
 
 function localCommandReply(name: string, props: { activeProject: Project | null; activeProfile: Profile | null; activeSession: ChatSession | null }): string {
   switch (name) {
-    case '/help': return 'Commands: /new (new session), /status, /session, /project [name|none] (move this chat into/out of a project), /runner. Prefix // to send a literal slash message to Hermes.'
+    case '/help': return 'Commands: /new (new session), /status, /session, /project <name> (switch to another project\'s chat), /runner. Prefix // to send a literal slash message to Hermes.'
     case '/status': return `Project: ${props.activeProject?.name || 'none'} · Profile: ${props.activeProfile?.name || 'none'} · Runner: hermes`
     case '/session': return `Session: ${props.activeSession?.title || 'new chat'}`
     case '/project': return `Project: ${props.activeProject?.name || 'none'} (${props.activeProject?.slug || '-'}). Type "/project <name>" to switch to another project's chat.`
