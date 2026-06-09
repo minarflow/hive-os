@@ -73,6 +73,8 @@ CREATE TABLE IF NOT EXISTS messages (
   session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   role TEXT NOT NULL,
   content TEXT NOT NULL,
+  author TEXT,
+  run_id INTEGER,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS runs (
@@ -188,6 +190,8 @@ def migrate_existing(conn: sqlite3.Connection) -> None:
     _add_column(conn, "sessions", "task_id", "task_id INTEGER")
     _add_column(conn, "runs", "heartbeat_at", "heartbeat_at TEXT")
     _add_column(conn, "profiles", "runner_id", "runner_id TEXT NOT NULL DEFAULT 'hermes'")
+    _add_column(conn, "messages", "author", "author TEXT")
+    _add_column(conn, "messages", "run_id", "run_id INTEGER")
 
 
 def init_db(conn: sqlite3.Connection, seed_users: list[dict[str, str]] | None = None, hermes_home_factory: Any | None = None, source_hermes_home: str | None = None) -> None:

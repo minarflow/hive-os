@@ -1,9 +1,34 @@
 import React from 'react'
-import type { ChatMessage, RunEvent } from '../../types'
+import type { ChatMessage, RunEvent, ActivityItem } from '../../types'
 import { MessageContent } from './MessageContent'
 import { IconSparkle, IconArrowDown } from '../shell/icons'
 
 const ROLE_LABEL: Record<string, string> = { user: 'You', assistant: 'Agent', error: 'Run error', system: 'Hive OS' }
+
+// Persisted tool/subagent activity for a finished reply — collapsed by default so
+// the swarm's work stays inspectable without cluttering the thread. 'Task' items
+// are subagent spawns and get highlighted.
+function ActivityPanel({ items }: { items: ActivityItem[] }) {
+  const [open, setOpen] = React.useState(false)
+  const subagents = items.filter(i => i.subagent).length
+  const summary = subagents > 0
+    ? `${subagents} subagent${subagents > 1 ? 's' : ''} · ${items.length} step${items.length > 1 ? 's' : ''}`
+    : `${items.length} step${items.length > 1 ? 's' : ''}`
+  return <div className={`activity-panel ${open ? 'open' : ''}`}>
+    <button className="activity-toggle" onClick={() => setOpen(o => !o)} aria-expanded={open}>
+      <span className={`activity-caret ${open ? 'open' : ''}`}>▸</span>
+      <span className="activity-summary">Agent activity</span>
+      <span className="activity-count">{summary}</span>
+    </button>
+    {open && <div className="activity-items">
+      {items.map((it, i) => <div key={i} className={`activity-item ${it.status} ${it.subagent ? 'subagent' : ''}`}>
+        <span className="tool-dot" />
+        <span className="activity-title">{it.title}</span>
+        {it.subagent && <span className="activity-badge">subagent</span>}
+      </div>)}
+    </div>}
+  </div>
+}
 
 export function ChatThread({ messages, events, pendingRunId, token, slug, agentName }: { messages: ChatMessage[]; events: RunEvent[]; pendingRunId?: number | null; pendingText?: string; token?: string; slug?: string; agentName?: string }) {
   // Label = recorded author (username for people, profile/agent name for the
@@ -62,7 +87,7 @@ export function ChatThread({ messages, events, pendingRunId, token, slug, agentN
   return <div className="thread" ref={scrollRef} onScroll={onScroll}>
     <div className="chat-log">
       {empty && <div className="chat-empty"><div className="chat-empty-mark"><IconSparkle size={30} /></div><h3>Start a conversation</h3><p>Ask your agent anything in this project. Type <code>/</code> for commands.</p></div>}
-      {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{labelFor(message)}</strong><MessageContent content={message.content} token={token} slug={slug} /></div>)}
+      {messages.map((message, index) => <div className={`chat-line ${message.role} enter`} key={message.id ?? index}><strong>{labelFor(message)}</strong><MessageContent content={message.content} token={token} slug={slug} />{message.role === 'assistant' && message.activity && message.activity.length > 0 && <ActivityPanel items={message.activity} />}</div>)}
       {tools.length > 0 && <div className="tool-cards enter">{tools.map(t => <div key={t.id} className={`tool-card ${t.status}`}><span className="tool-dot" />{t.title}</div>)}</div>}
       {streaming && <div className="chat-line assistant"><strong>{agentLabel}</strong><span className="md-stream">{streaming}</span></div>}
       {waiting && <div className="chat-line pending enter"><strong>{agentLabel}</strong><span className="typing"><i /><i /><i /></span></div>}
