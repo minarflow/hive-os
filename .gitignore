@@ -42,3 +42,6 @@ apps/api/.dev/
 # Not for public repo
 .impeccable.md
 .claude/
+
+# Internal workflow docs (brainstorm specs / implementation plans) — not public
+docs/superpowers/
