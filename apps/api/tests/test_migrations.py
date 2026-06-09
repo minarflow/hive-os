@@ -87,3 +87,20 @@ def test_v4_adds_runs_kind(tmp_path: Path):
     assert "kind" in cols
     conn.execute("INSERT INTO runs DEFAULT VALUES")
     assert conn.execute("SELECT kind FROM runs").fetchone()["kind"] == "chat"
+
+
+def test_v5_relabels_private_projects(tmp_path: Path):
+    conn = connect(tmp_path / "h.db")
+    conn.executescript("""
+      CREATE TABLE projects (id INTEGER PRIMARY KEY, name TEXT, visibility TEXT);
+      INSERT INTO projects(name, visibility) VALUES ('iqbal (private)', 'private');
+      INSERT INTO projects(name, visibility) VALUES ('Team Roadmap', 'shared');
+    """)
+    # earlier migrations need these tables to exist
+    conn.executescript("CREATE TABLE messages(id INTEGER PRIMARY KEY); CREATE TABLE profiles(id INTEGER PRIMARY KEY); CREATE TABLE runs(id INTEGER PRIMARY KEY);")
+    applied = run_migrations(conn, str(tmp_path / "h.db"))
+    assert 5 in applied
+    names = {r[0] for r in conn.execute("SELECT name FROM projects").fetchall()}
+    assert "iqbal (personal)" in names      # relabelled
+    assert "Team Roadmap" in names          # untouched
+    assert not any("(private)" in n for n in names)

@@ -58,10 +58,11 @@ export function App() {
     setSessions(sessionBody.sessions)
     setRunners(runnerBody.runners)
     setActiveProfile(current => current && profileBody.profiles.some(p => p.id === current.id) ? current : profileBody.profiles.find(p => p.is_default) || profileBody.profiles[0] || null)
-    // Default to "No project" (ephemeral chat), not the first project. A casual
-    // chat shouldn't get silently attached to a project; the user picks one only
-    // when they want it saved. Keep the current pick if it's still valid.
-    setActiveProject(current => current && projectBody.projects.some(p => p.slug === current.slug) ? current : null)
+    // Every chat lives in a project. Default to the user's personal project (their
+    // private one), not a "No project" limbo. Keep the current pick if still valid.
+    setActiveProject(current => current && projectBody.projects.some(p => p.slug === current.slug)
+      ? current
+      : projectBody.projects.find(p => p.visibility === 'private') || projectBody.projects[0] || null)
     setActiveSession(current => current && sessionBody.sessions.some(s => s.id === current.id) ? current : sessionBody.sessions[0] || null)
   }, [token])
 
@@ -125,6 +126,19 @@ export function App() {
     setView('chat')
   }
 
+  // Switching project opens that project's most recent chat (not a task thread),
+  // or a blank new chat if it has none — so the chat view always reflects the
+  // chosen project instead of leaving you on an unrelated conversation.
+  function selectProject(p: Project | null) {
+    setActiveProject(p)
+    if (!p) { setActiveSession(null); return }
+    const recent = sessions
+      .filter(s => s.project_slug === p.slug && !s.task_id)
+      .sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''))[0] || null
+    setActiveSession(recent)
+    setView('chat')
+  }
+
   async function handleRenameSession(id: number, title: string) {
     await renameSession(token, id, title)
     await refreshAll(token)
@@ -160,8 +174,8 @@ export function App() {
       onNewChat={() => void startNewSession()}
       onRenameSession={(id, title) => void handleRenameSession(id, title)}
       onDeleteSession={id => void handleDeleteSession(id)}
-      onSelectProject={project => setActiveProject(project)}
-      onSelectSession={session => { setActiveSession(session); markSeen(session.id, session.updated_at); setView('chat') }}
+      onSelectProject={selectProject}
+      onSelectSession={session => { setActiveSession(session); const sp = projects.find(p => p.slug === session.project_slug); if (sp) setActiveProject(sp); markSeen(session.id, session.updated_at); setView('chat') }}
       onOpenTask={taskId => { setPendingTask(taskId); setView('tasks'); const s = sessions.find(x => x.task_id === taskId); if (s) markSeen(s.id, s.updated_at) }}
       onDeleteTask={async taskId => { try { await deleteTask(token, taskId); await refreshAll(token) } catch { /* ignore */ } }}
       seen={seen}
@@ -175,7 +189,7 @@ export function App() {
     >
       {error && <div className="error-bar">{error}</div>}
       <HermesBanner token={token} />
-      {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={setActiveProject} onSession={setActiveSession} onRefresh={refreshAll} onNewSession={startNewSession} />}
+      {view === 'chat' && <ChatScreen activeProfile={activeProfile} activeProject={activeProject} activeSession={activeSession} profiles={profiles} projects={projects} token={token} onActiveProfile={setActiveProfile} onActiveProject={selectProject} onSession={setActiveSession} onRefresh={refreshAll} onNewSession={startNewSession} />}
       {view === 'projects' && <ProjectsScreen token={token} projects={projects} onActiveProject={setActiveProject} onRefresh={refreshAll} />}
       {view === 'wiki' && <WikiScreen token={token} projects={projects} />}
       {view === 'artifacts' && <ArtifactsScreen token={token} projects={projects} activeProject={activeProject} pendingFile={pendingFile} onPendingConsumed={() => setPendingFile(null)} />}
