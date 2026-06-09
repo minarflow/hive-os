@@ -22,16 +22,27 @@ load_config() {
   export PYTHONPATH="$API_DIR${PYTHONPATH:+:$PYTHONPATH}"
 }
 
-# Run a systemctl action against whichever hive-os service is installed
-# (user service preferred; falls back to the system service with sudo).
+# Run a service action against whichever hive-os service is installed:
+# launchd on macOS, else systemd (user, then system with sudo).
 svc() {
   local action="$1"
+  local plist="$HOME/Library/LaunchAgents/com.hiveos.server.plist"
+  if [[ "$(uname -s)" == "Darwin" && -f "$plist" ]]; then
+    case "$action" in
+      restart) launchctl unload "$plist" 2>/dev/null || true; launchctl load "$plist" ;;
+      stop)    launchctl unload "$plist" ;;
+      start)   launchctl load "$plist" ;;
+      status)  launchctl list | grep -i hiveos || echo "hive-os: not loaded" ;;
+      *)       launchctl "$action" "$plist" ;;
+    esac
+    return $?
+  fi
   if systemctl --user cat hive-os.service >/dev/null 2>&1; then
     systemctl --user "$action" hive-os "${@:2}"
   elif systemctl cat hive-os.service >/dev/null 2>&1; then
     sudo systemctl "$action" hive-os "${@:2}"
   else
-    echo "no installed hive-os service found (run scripts/install-user first)" >&2
+    echo "no installed hive-os service found (run scripts/install-user or install-macos first)" >&2
     return 1
   fi
 }
@@ -92,7 +103,13 @@ EOF
   restart) svc restart && echo "✅ restarted" ;;
   stop)    svc stop && echo "✅ stopped" ;;
   status)  svc status "$@" ;;
-  logs)    svc status >/dev/null 2>&1; journalctl --user -u hive-os -f 2>/dev/null || sudo journalctl -u hive-os -f ;;
+  logs)
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+      tail -f "$HOME/Library/Logs/hive-os.log"
+    else
+      journalctl --user -u hive-os -f 2>/dev/null || sudo journalctl -u hive-os -f
+    fi
+    ;;
   serve)
     load_config
     mkdir -p "$HIVEOS_WORKSPACE_ROOT" "$HIVEOS_HERMES_PROFILES_ROOT" "$(dirname "$HIVEOS_DB_PATH")"

@@ -97,6 +97,57 @@ Default user-local data lives under:
 ~/.config/hive-os/hive-os.env
 ```
 
+## macOS install
+
+Native, no Docker. Builds the app and runs it as an always-on **launchd** agent
+(auto-starts at login). Requirements: `uv`, Node/`npm`, and an agent CLI you've
+logged into (Claude Code / Codex / Hermes).
+
+```bash
+git clone https://github.com/minarflow/hive-os
+cd hive-os
+bash scripts/install-macos
+```
+
+Then open `http://127.0.0.1:8765`. Manage it with the same `hive-os` command as
+Linux (it detects launchd automatically):
+
+```bash
+hive-os update     # git pull + rebuild + restart
+hive-os restart
+hive-os logs
+hive-os stop
+```
+
+Data lives under `~/.local/share/hive-os`. Agent credentials are read from the
+host (`~/.claude`, `~/.codex`, `~/.hermes`) — log into the agent's CLI as usual.
+
+## Windows install (no Docker)
+
+Native install via PowerShell + a **Scheduled Task** (auto-start at logon).
+Requirements: `uv`, Node/`npm`, and an agent CLI logged in (Claude Code / Codex;
+Hermes also runs on Windows). In PowerShell:
+
+```powershell
+git clone https://github.com/minarflow/hive-os
+cd hive-os
+powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1
+```
+
+Then open `http://127.0.0.1:8765`. Manage via the Scheduled Task:
+
+```powershell
+Stop-ScheduledTask  -TaskName HiveOS        # stop
+Start-ScheduledTask -TaskName HiveOS        # start / restart
+Get-Content "$env:LOCALAPPDATA\hive-os\logs\hive-os.log" -Wait   # logs
+# Update: git pull, then re-run the installer
+git pull; powershell -ExecutionPolicy Bypass -File scripts\install-windows.ps1
+```
+
+Data lives under `%LOCALAPPDATA%\hive-os`. Agent credentials are read from the
+host (`%USERPROFILE%\.claude`, `%USERPROFILE%\.codex`) — log into the agent's CLI
+as usual. (Hermes is Linux-first historically but ships Windows support.)
+
 ## Remote access & team sharing (Tailscale)
 
 Hive OS listens only on `127.0.0.1:8765`, so out of the box it is reachable
