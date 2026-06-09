@@ -8,7 +8,7 @@ import { ChatThread } from '../components/chat/ChatThread'
 import { WikiNotePreview } from '../components/wiki/WikiNotePreview'
 import { Composer } from '../components/chat/Composer'
 import { Dropdown } from '../components/ui/Dropdown'
-import { IconProjects, IconAgents } from '../components/shell/icons'
+import { IconProjects, IconAgents, IconWiki } from '../components/shell/icons'
 import { notify } from '../lib/notify'
 
 const cleanName = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
@@ -143,7 +143,7 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     <span className="ctl-divider" />
     <span className={`stream-dot ${connected ? 'on' : ''}`} title={connected ? 'Stream connected' : 'Stream idle'} />{busyRun && <button className="ghost-button" onClick={() => void cancelRun(props.token, busyRun)} title="Cancel run">Cancel</button>}
     <span className="ctl-divider" />
-    <button className="ghost-button" onClick={() => void startWikiDraft()} disabled={!activeSession || savingWiki} title="Distill this conversation into a wiki note">📑 {savingWiki ? 'Preparing…' : 'Save to wiki'}</button>
+    <button className="ghost-button icon-text" onClick={() => void startWikiDraft()} disabled={!activeSession || savingWiki} title="Distill this conversation into a wiki note"><IconWiki size={15} />{savingWiki ? 'Preparing…' : 'Save to wiki'}</button>
   </div>
   const projSlug = activeSession?.project_slug || props.activeProject?.slug || undefined
   return <section className="chat-stage"><ChatThread messages={messages} events={events} pendingRunId={busyRun} pendingText={busyRun ? 'Working…' : ''} token={props.token} slug={projSlug} agentName={activeSession?.profile_name || props.activeProfile?.name || undefined} />{error && <div className="error-bar">{error}</div>}<div className="chat-dock">{controls}<Composer disabled={!props.activeProfile} token={props.token} slug={projSlug} onSubmit={submit} /></div>

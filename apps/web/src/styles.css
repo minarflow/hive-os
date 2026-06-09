@@ -806,6 +806,7 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .wiki-mode { display: flex; gap: 16px; font-size: .82rem; color: var(--ui-text-secondary); }
 .wiki-mode label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .wiki-preview-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.ghost-button.icon-text { display: inline-flex; align-items: center; gap: 6px; }
 
 /* Audit log */
 .audit-view { flex: 1; overflow: auto; padding: 20px; }
