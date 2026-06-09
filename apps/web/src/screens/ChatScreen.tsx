@@ -1,6 +1,6 @@
 import React from 'react'
 import { createRun, cancelRun, listEvents } from '../api/runs'
-import { createSession, listMessages } from '../api/sessions'
+import { createSession, listMessages, moveSessionToProject } from '../api/sessions'
 import { draftWikiNote, commitWikiNote } from '../api/wiki'
 import { useEventStream } from '../hooks/useEventStream'
 import type { ChatMessage, ChatSession, Profile, Project, RunEvent, WikiDraft } from '../types'
@@ -15,10 +15,10 @@ const cleanName = (n: string) => n.replace(/\s*\(private\)\s*$/i, '')
 
 function localCommandReply(name: string, props: { activeProject: Project | null; activeProfile: Profile | null; activeSession: ChatSession | null }): string {
   switch (name) {
-    case '/help': return 'Commands: /new (new session), /status, /session, /project, /runner. Prefix // to send a literal slash message to Hermes.'
+    case '/help': return 'Commands: /new (new session), /status, /session, /project [name|none] (move this chat into/out of a project), /runner. Prefix // to send a literal slash message to Hermes.'
     case '/status': return `Project: ${props.activeProject?.name || 'none'} · Profile: ${props.activeProfile?.name || 'none'} · Runner: hermes`
     case '/session': return `Session: ${props.activeSession?.title || 'new chat'}`
-    case '/project': return `Project: ${props.activeProject?.name || 'none'} (${props.activeProject?.slug || '-'})`
+    case '/project': return `Project: ${props.activeProject?.name || 'No project'} (${props.activeProject?.slug || '-'}). Type "/project <name>" to move this chat into a project, or "/project none" to detach.`
     case '/runner': return 'Active runner: hermes (only runner enabled).'
     default: return 'Unknown command.'
   }
@@ -101,6 +101,20 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
     return created
   }
 
+  // Pick the active project AND, if a chat is already open, move it into that
+  // project (or detach when slug is empty). This is the "adopt this chat" path —
+  // a No-project chat stays ephemeral until the user assigns it here.
+  async function chooseProject(slug: string) {
+    const p = slug ? props.projects.find(project => project.slug === slug) || null : null
+    props.onActiveProject(p)
+    if (activeSession) {
+      try {
+        const updated = await moveSessionToProject(props.token, activeSession.id, p?.slug || null)
+        setLocalSession(updated); props.onSession(updated); await props.onRefresh()
+      } catch (e) { setError(String(e)) }
+    }
+  }
+
   async function submit(text: string) {
     setError('')
     try {
@@ -108,6 +122,17 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
       if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
         const name = trimmed.split(/\s+/)[0].toLowerCase()
         if (name === '/new' || name === '/reset') { await props.onNewSession(); return }
+        if (name === '/project') {
+          const arg = trimmed.split(/\s+/).slice(1).join(' ').trim()
+          if (arg) {
+            const detach = /^(none|no|off)$/i.test(arg)
+            const target = detach ? null : props.projects.find(p => p.slug === arg || cleanName(p.name).toLowerCase() === arg.toLowerCase())
+            if (!detach && !target) { setMessages(current => [...current, { role: 'system', content: `No project matches "${arg}". Use the project name or slug.` }]); return }
+            await chooseProject(target?.slug || '')
+            setMessages(current => [...current, { role: 'system', content: target ? `Moved this chat into ${cleanName(target.name)}. "Save to wiki" is now available.` : 'Detached this chat — back to No project.' }])
+            return
+          }
+        }
         if (name === '/help' || name === '/status' || name === '/session' || name === '/project' || name === '/runner') {
           setMessages(current => [...current, { role: 'system', content: localCommandReply(name, props) }])
           return
@@ -132,7 +157,7 @@ export function ChatScreen(props: { token: string; activeProfile: Profile | null
 
   const controls = <div className="chat-controls">
     <label className="toolbar-control"><span className="ctl-icon" title="Project"><IconProjects size={15} /></span><span className="ctl-label">Projects</span>
-      <Dropdown dropUp value={props.activeProject?.slug || ''} onChange={slug => { if (!slug) return props.onActiveProject(null); const p = props.projects.find(project => project.slug === slug); if (p) props.onActiveProject(p) }}
+      <Dropdown dropUp value={props.activeProject?.slug || ''} onChange={slug => void chooseProject(slug)}
         options={[{ value: '', label: 'No project' }, ...props.projects.map(p => ({ value: p.slug, label: cleanName(p.name), badge: p.visibility === 'shared' ? 'shared' : undefined }))]} />
     </label>
     <span className="ctl-divider" />

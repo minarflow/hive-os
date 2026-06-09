@@ -58,7 +58,10 @@ export function App() {
     setSessions(sessionBody.sessions)
     setRunners(runnerBody.runners)
     setActiveProfile(current => current && profileBody.profiles.some(p => p.id === current.id) ? current : profileBody.profiles.find(p => p.is_default) || profileBody.profiles[0] || null)
-    setActiveProject(current => current && projectBody.projects.some(p => p.slug === current.slug) ? current : projectBody.projects[0] || null)
+    // Default to "No project" (ephemeral chat), not the first project. A casual
+    // chat shouldn't get silently attached to a project; the user picks one only
+    // when they want it saved. Keep the current pick if it's still valid.
+    setActiveProject(current => current && projectBody.projects.some(p => p.slug === current.slug) ? current : null)
     setActiveSession(current => current && sessionBody.sessions.some(s => s.id === current.id) ? current : sessionBody.sessions[0] || null)
   }, [token])
 

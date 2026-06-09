@@ -173,7 +173,10 @@ class SessionCreateRequest(BaseModel):
 
 
 class SessionUpdateRequest(BaseModel):
-    title: str = Field(min_length=1, max_length=200)
+    title: str | None = Field(default=None, max_length=200)
+    # Reassign the chat to a project (slug) or detach it (null). Only applied when
+    # the field is explicitly present in the request — see model_fields_set below.
+    project_slug: str | None = None
 
 
 class MessageCreateRequest(BaseModel):
@@ -1685,9 +1688,22 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
     def update_session(session_id: int, payload: SessionUpdateRequest, user: dict[str, Any] = Depends(current_user)):
         session = session_for_user(session_id, user)
         if session["owner_user_id"] != user["id"]:
-            raise HTTPException(status_code=403, detail="only the session owner can rename it")
-        title = payload.title.strip() or session["title"]
-        db().execute("UPDATE sessions SET title = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?", (title, session_id))
+            raise HTTPException(status_code=403, detail="only the session owner can change it")
+        sets: list[str] = []
+        params: list[Any] = []
+        if payload.title is not None and payload.title.strip():
+            sets.append("title = ?"); params.append(payload.title.strip())
+        if "project_slug" in payload.model_fields_set:
+            # Adopt the chat into a project (slug, access-checked) or detach (null).
+            if payload.project_slug:
+                project = visible_project(payload.project_slug, user)
+                sets.append("project_id = ?"); params.append(project["id"])
+            else:
+                sets.append("project_id = ?"); params.append(None)
+        if sets:
+            sets.append("updated_at = CURRENT_TIMESTAMP")
+            params.append(session_id)
+            db().execute(f"UPDATE sessions SET {', '.join(sets)} WHERE id = ?", params)
         row = db().execute(
             """
             SELECT s.*, p.slug AS project_slug, p.name AS project_name, pr.slug AS profile_slug, pr.name AS profile_name, t.title AS task_title
