@@ -101,10 +101,20 @@ EOF
     fi
     echo "==> Rebuilding"
     ( cd "$REPO/apps/api" && uv sync )
-    # npm ci installs exactly from the lockfile without rewriting it (npm install
-    # can bump transitive entries and dirty the tree). Falls back to install if
-    # the lockfile is out of sync with package.json.
-    ( cd "$REPO/apps/web" && { npm ci || npm install; } && npm run build )
+    # Prefer npm ci (reproducible, doesn't rewrite the lockfile). If the lockfile
+    # has drifted from package.json — common when transitive/optional deps resolve
+    # differently across npm versions — ci aborts with a wall of errors. Swallow
+    # that noise and fall back to npm install, printing one honest line instead.
+    (
+      cd "$REPO/apps/web"
+      if npm ci >/dev/null 2>&1; then
+        echo "    deps: clean install from lockfile"
+      else
+        echo "    deps: lockfile drifted, running npm install"
+        npm install
+      fi
+      npm run build
+    )
     # Restart whichever service is installed so the new code (and DB migrations) load.
     echo "==> Restarting"
     if svc restart 2>/dev/null; then
