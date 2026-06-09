@@ -9,6 +9,7 @@ import subprocess
 import httpx
 import time
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncIterator
 
@@ -29,6 +30,7 @@ from .runner_specs import RUNNER_SPECS, runner_spec
 from .settings import hermes_home_for, normalize_config, validate_slug
 from .security.command_policy import classify_command
 from . import fsapi
+from . import wiki_memory
 logger = logging.getLogger("hive_os.api")
 
 from .provisioning import (
@@ -183,6 +185,16 @@ class RunCreateRequest(BaseModel):
     message: str = Field(min_length=1)
     profile_id: int | None = None
     model: str | None = None
+
+
+class WikiDraftRequest(BaseModel):
+    profile_id: int | None = None
+
+
+class WikiCommitRequest(BaseModel):
+    path: str
+    content: str
+    mode: str = "new"   # 'new' | 'append' | 'overwrite'
 
 
 class ChatSendRequest(BaseModel):
@@ -342,6 +354,54 @@ class RunWorker:
         ).fetchone()
         return row["name"] if row and row["name"] else None
 
+    def _wiki_root_for_run(self, run: dict[str, Any]) -> Path | None:
+        """Project thread -> <project.path>/wiki ; personal thread -> users/<name>/wiki."""
+        db = self.app.state.worker_db
+        cfg = self.app.state.config
+        if run["project_id"]:
+            row = db.execute("SELECT path FROM projects WHERE id = ?", (run["project_id"],)).fetchone()
+            if row and row["path"]:
+                return Path(row["path"]) / "wiki"
+            return None
+        urow = db.execute("SELECT username FROM users WHERE id = ?", (run["user_id"],)).fetchone()
+        if not urow:
+            return None
+        return Path(cfg["workspace_root"]) / "users" / urow["username"] / "wiki"
+
+    def _autolog_enabled(self, project_id: int | None) -> bool:
+        if project_id is None:
+            return True
+        db = self.app.state.worker_db
+        row = db.execute("SELECT value FROM app_settings WHERE key = ?", (f"project:{project_id}:wiki_autolog",)).fetchone()
+        return (row["value"] if row else "on") != "off"
+
+    async def _write_auto_log(self, run: dict[str, Any], proc: Any, acp_sid: str) -> None:
+        """Best-effort: summarize the just-finished turn and append to the log."""
+        db = self.app.state.worker_db
+        if not self._autolog_enabled(run["project_id"]):
+            return
+        root = self._wiki_root_for_run(run)
+        if root is None:
+            return
+        sum_chunks: list[str] = []
+        def _on_sum(u: dict[str, Any]) -> None:
+            if u.get("sessionUpdate") == "agent_message_chunk":
+                t = (u.get("content") or {}).get("text", "")
+                if t:
+                    sum_chunks.append(t)
+        await proc.prompt(acp_sid, wiki_memory.SUMMARIZE_PROMPT, _on_sum, timeout=60)
+        summary = "".join(sum_chunks).strip()
+        if not summary:
+            return
+        urow = db.execute("SELECT username FROM users WHERE id = ?", (run["user_id"],)).fetchone()
+        author = urow["username"] if urow else "agent"
+        trow = db.execute(
+            "SELECT t.title FROM sessions s LEFT JOIN tasks t ON t.id = s.task_id WHERE s.id = ?",
+            (run["session_id"],),
+        ).fetchone()
+        task_title = trow["title"] if trow and trow["title"] else None
+        wiki_memory.append_log_entry(root, datetime.now(), author, summary, task_title)
+
     def _fail_interrupted(self, run_id: int, session_id: int, project_id: int | None, reason: str) -> None:
         """Terminally close a run that lost its in-memory state (shutdown / crash /
         stale heartbeat). Salvages any streamed output as a saved message."""
@@ -488,6 +548,15 @@ class RunWorker:
                 answer = f"Agent produced no output (stop reason: {stop_reason})."
                 if detail:
                     answer += f"\n\nAgent error log:\n```\n{detail}\n```"
+            if run.get("kind", "chat") == "wiki_draft":
+                # A Save-to-wiki draft turn: emit the parsed note as an event for the
+                # preview modal instead of saving a chat message or moving a task.
+                draft = wiki_memory.parse_note_draft(answer)
+                with self.app.state.db_lock:
+                    self.add_event(run_id, session_id, project_id, "wiki.draft", draft)
+                    self.add_event(run_id, session_id, project_id, "run.completed", {"stop_reason": stop_reason})
+                    db.execute("UPDATE runs SET status = 'completed', finished_at = CURRENT_TIMESTAMP WHERE id = ?", (run_id,))
+                return
             with self.app.state.db_lock:
                 cur = db.execute("INSERT INTO messages(session_id, role, content, author, run_id) VALUES (?, 'assistant', ?, ?, ?)", (session_id, answer, self._agent_name(run_id), run_id))
                 db.execute("UPDATE sessions SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (session_id,))
@@ -497,6 +566,13 @@ class RunWorker:
                 trow = db.execute("SELECT task_id FROM sessions WHERE id = ?", (session_id,)).fetchone()
                 if trow and trow["task_id"]:
                     db.execute("UPDATE tasks SET status = 'review', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'done'", (trow["task_id"],))
+            # Layer 1: append a one-line memory-log entry for this turn. Best-effort —
+            # a logging failure must never fail the user's actual run.
+            if answer and not answer.startswith("Agent produced no output"):
+                try:
+                    await self._write_auto_log(run, proc, acp_sid)
+                except Exception:
+                    logging.getLogger("hive_os.worker").exception("auto-log failed (non-fatal)")
         except asyncio.CancelledError:
             # Graceful shutdown: close the run cleanly (salvaging streamed text)
             # instead of leaving it orphaned in 'running'.
@@ -1698,6 +1774,55 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
         if session.get("task_id"):
             db().execute("UPDATE tasks SET status = 'doing', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'done'", (session["task_id"],))
         return {"run_id": run_id, "session_id": session_id, "status": "queued"}
+
+    def _session_wiki_root(session: dict[str, Any], user: dict[str, Any]) -> Path | None:
+        """Project thread -> the project's wiki; personal thread -> the user's wiki."""
+        if session["project_id"]:
+            prow = db().execute("SELECT slug FROM projects WHERE id = ?", (session["project_id"],)).fetchone()
+            return _project_root(prow["slug"], user) / "wiki" if prow else None
+        return _wiki_root(user)
+
+    @app.post("/api/sessions/{session_id}/wiki-note/draft", status_code=202)
+    def wiki_note_draft(session_id: int, payload: WikiDraftRequest, user: dict[str, Any] = Depends(current_user)):
+        session = session_for_user(session_id, user)
+        profile = profile_for_user(payload.profile_id, user)
+        wiki_root = _session_wiki_root(session, user)
+        notes = fsapi.walk_files(wiki_root) if wiki_root and Path(wiki_root).is_dir() else []
+        prompt = wiki_memory.build_draft_prompt(notes)
+        cur = db().execute(
+            """
+            INSERT INTO runs(session_id, project_id, user_id, profile_id, runner_id, status, prompt, model, hermes_home, kind)
+            VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?, 'wiki_draft')
+            """,
+            (session_id, session["project_id"], user["id"], profile["id"], profile["runner_id"], prompt, profile["default_model"], profile["hermes_home"]),
+        )
+        run_id = int(cur.lastrowid)
+        app.state.worker.add_event(run_id, session_id, session["project_id"], "run.queued", {"runner": profile["runner_id"], "kind": "wiki_draft"})
+        return {"run_id": run_id, "session_id": session_id, "status": "queued"}
+
+    @app.post("/api/sessions/{session_id}/wiki-note/commit")
+    def wiki_note_commit(session_id: int, payload: WikiCommitRequest, user: dict[str, Any] = Depends(current_user)):
+        session = session_for_user(session_id, user)
+        root = _session_wiki_root(session, user)
+        if root is None:
+            raise HTTPException(status_code=400, detail="no wiki for this session")
+        try:
+            if payload.mode == "append":
+                try:
+                    prior = fsapi.read_file(root, payload.path)
+                except fsapi.FsError:
+                    prior = ""
+                content = (prior.rstrip() + "\n\n" + payload.content.strip() + "\n") if prior else payload.content
+            else:
+                content = payload.content
+            fsapi.write_file(root, payload.path, content)
+        except fsapi.FsError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        db().execute(
+            "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) VALUES (?, 'wiki.note.commit', 'wiki', ?, ?)",
+            (user["id"], payload.path, json.dumps({"mode": payload.mode, "session_id": session_id})),
+        )
+        return {"ok": True, "path": payload.path}
 
     @app.post("/api/chat/send", status_code=202)
     def chat_send(payload: ChatSendRequest, user: dict[str, Any] = Depends(current_user)):

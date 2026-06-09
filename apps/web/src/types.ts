@@ -8,5 +8,6 @@ export type Task = { id: number; project_slug: string | null; session_id: number
 export type ActivityItem = { title: string; status: string; subagent: boolean }
 export type ChatMessage = { id?: number; role: 'user' | 'system' | 'assistant' | 'error'; content: string; author?: string | null; run_id?: number | null; activity?: ActivityItem[]; created_at?: string }
 export type RunEvent = { id: number; seq: number; type: string; run_id: number; session_id: number; project_id?: number | null; payload: Record<string, unknown>; created_at: string }
+export type WikiDraft = { title: string; path: string; body: string; related: string[]; conflicts: string[]; action: 'new' | 'merge'; target?: string | null; unparsed?: boolean }
 export type View = 'chat' | 'projects' | 'wiki' | 'artifacts' | 'tasks' | 'linc-projects' | 'profiles' | 'runners' | 'settings' | 'users'
 export type FileEntry = { name: string; type: 'dir' | 'file'; size: number }

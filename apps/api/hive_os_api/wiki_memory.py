@@ -1,0 +1,101 @@
+"""Wiki-as-memory helpers: the automatic project log (Layer 1) and parsing of
+the agent's Save-to-wiki note draft (Layer 2). Kept free of any agent/runner
+dependency so it is unit-testable in isolation."""
+from __future__ import annotations
+
+import json
+import re
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+# Layer 1 — the summarize prompt the worker sends after a successful run.
+SUMMARIZE_PROMPT = (
+    "In one sentence, summarize what you just did, for the project log. "
+    "Output only the sentence — no preamble, no markdown, no quotes."
+)
+
+
+def format_log_entry(when: datetime, author: str, summary: str, task_title: str | None = None) -> str:
+    line = f"- {when:%H:%M} · {author} — {summary.strip()}"
+    if task_title:
+        line += f" ([[task: {task_title}]])"
+    return line
+
+
+def _insert_entry(existing: str, heading: str, entry: str) -> str:
+    """Newest day section on top; newest entry on top within its day."""
+    if heading in existing:
+        lines = existing.split("\n")
+        idx = lines.index(heading)
+        lines.insert(idx + 1, entry)
+        return "\n".join(lines)
+    block = f"{heading}\n{entry}\n"
+    if existing.strip():
+        return f"{block}\n{existing.lstrip()}"
+    return f"# Project log\n\n{block}"
+
+
+def append_log_entry(wiki_root: Path, when: datetime, author: str, summary: str, task_title: str | None = None) -> None:
+    log = Path(wiki_root) / "log.md"
+    existing = log.read_text(encoding="utf-8") if log.exists() else ""
+    new_text = _insert_entry(existing, f"## {when:%Y-%m-%d}", format_log_entry(when, author, summary, task_title))
+    log.parent.mkdir(parents=True, exist_ok=True)
+    log.write_text(new_text, encoding="utf-8")
+
+
+def build_draft_prompt(existing_notes: list[dict[str, Any]]) -> str:
+    """Prompt the (already-context-loaded) agent to distill THIS conversation into
+    a wiki note, cross-checked against existing notes. log.md is excluded — it is
+    the running journal, not a reference note."""
+    refs = []
+    for n in existing_notes:
+        path = str(n.get("path") or "")
+        if not path or path == "log.md" or path.endswith("/log.md"):
+            continue
+        first = (n.get("content") or "").strip().splitlines()
+        refs.append(f"- {path}: {first[0] if first else ''}")
+    refs_block = "\n".join(refs) if refs else "(none yet)"
+    return (
+        "Based on our conversation above, produce a single wiki note that captures "
+        "what is worth keeping — focused on what is relevant to THIS project and what "
+        "we can adopt, not a transcript.\n\n"
+        "Cross-check it against the existing notes listed below. If it overlaps one, "
+        "say which and what is genuinely new; if it contradicts one, flag the conflict.\n\n"
+        f"Existing notes (path: first line):\n{refs_block}\n\n"
+        "Reply with ONLY a fenced ```json block, no other text, shaped exactly:\n"
+        "```json\n"
+        "{\n"
+        '  "title": "Short title",\n'
+        '  "path": "<topic-folder>/<slug>.md",\n'
+        '  "body": "# Title\\n\\nMarkdown body with [[links]] to related notes.",\n'
+        '  "related": ["existing/path.md"],\n'
+        '  "conflicts": ["one line per conflict, or empty"],\n'
+        '  "action": "new" or "merge",\n'
+        '  "target": "existing/path.md if action is merge, else null"\n'
+        "}\n"
+        "```"
+    )
+
+
+def parse_note_draft(text: str) -> dict[str, Any]:
+    m = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+    if m:
+        try:
+            data = json.loads(m.group(1))
+            return {
+                "title": str(data.get("title") or "Untitled"),
+                "path": str(data.get("path") or "notes/untitled.md"),
+                "body": str(data.get("body") or ""),
+                "related": [str(x) for x in (data.get("related") or [])],
+                "conflicts": [str(x) for x in (data.get("conflicts") or [])],
+                "action": "merge" if str(data.get("action")) == "merge" else "new",
+                "target": (str(data["target"]) if data.get("target") else None),
+                "unparsed": False,
+            }
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+    return {
+        "title": "Draft note", "path": "notes/draft.md", "body": text.strip(),
+        "related": [], "conflicts": [], "action": "new", "target": None, "unparsed": True,
+    }

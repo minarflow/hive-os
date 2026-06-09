@@ -72,3 +72,18 @@ def test_failed_migration_rolls_back_and_does_not_record(tmp_path: Path):
     # version unchanged, partial table rolled back
     assert current_version(conn) == 0
     assert conn.execute("SELECT name FROM sqlite_master WHERE name='half'").fetchone() is None
+
+
+def test_v4_adds_runs_kind(tmp_path: Path):
+    import sqlite3 as _sqlite3
+    conn = _sqlite3.connect(tmp_path / "m.db")
+    conn.row_factory = _sqlite3.Row
+    conn.execute("CREATE TABLE runs (id INTEGER PRIMARY KEY)")  # pre-kind shape
+    conn.execute("CREATE TABLE messages (id INTEGER PRIMARY KEY)")   # for earlier migrations
+    conn.execute("CREATE TABLE profiles (id INTEGER PRIMARY KEY)")
+    applied = run_migrations(conn, str(tmp_path / "m.db"))
+    assert 4 in applied
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)").fetchall()}
+    assert "kind" in cols
+    conn.execute("INSERT INTO runs DEFAULT VALUES")
+    assert conn.execute("SELECT kind FROM runs").fetchone()["kind"] == "chat"

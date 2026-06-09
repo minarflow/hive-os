@@ -796,6 +796,17 @@ button:disabled { cursor: not-allowed; opacity: .6; }
 .activity-item.subagent { border-color: var(--ui-accent); background: color-mix(in srgb, var(--ui-accent) 8%, var(--ui-surface-subtle)); color: var(--ui-text-primary); }
 .activity-badge { margin-left: auto; font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--ui-accent); border: 1px solid var(--ui-accent); border-radius: 6px; padding: 1px 6px; }
 
+/* Save-to-wiki preview modal */
+.modal-card.wiki-preview { width: min(640px, 94vw); max-height: 88vh; overflow: auto; display: flex; flex-direction: column; gap: 10px; }
+.wiki-preview-head { display: flex; align-items: center; justify-content: space-between; }
+.wiki-conflicts { display: grid; gap: 4px; }
+.wiki-conflict { font-size: .82rem; color: var(--ui-danger); border: 1px solid var(--ui-danger); border-radius: 8px; background: color-mix(in srgb, var(--ui-danger) 8%, transparent); padding: 5px 9px; }
+.wiki-field { display: flex; flex-direction: column; gap: 4px; font-size: .82rem; color: var(--ui-text-secondary); }
+.wiki-body { font-family: var(--font-mono, monospace); resize: vertical; min-height: 220px; line-height: 1.45; }
+.wiki-mode { display: flex; gap: 16px; font-size: .82rem; color: var(--ui-text-secondary); }
+.wiki-mode label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.wiki-preview-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
 /* Audit log */
 .audit-view { flex: 1; overflow: auto; padding: 20px; }
 .audit-view .panel { max-width: 1000px; }
