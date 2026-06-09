@@ -13,7 +13,10 @@ command -v npm >/dev/null 2>&1 || { echo "missing: npm" >&2; exit 1; }
 echo "==> Building backend deps"
 ( cd "$ROOT/apps/api" && uv sync >/dev/null )
 echo "==> Building web PWA"
-( cd "$ROOT/apps/web" && npm install >/dev/null && npm run build >/dev/null )
+# Prefer npm ci: it installs exactly from the lockfile WITHOUT rewriting it, so a
+# fresh build doesn't dirty package-lock.json and block the next 'git pull'. Fall
+# back to npm install only if the lockfile has drifted (e.g. different npm version).
+( cd "$ROOT/apps/web" && { npm ci >/dev/null 2>&1 || npm install >/dev/null; } && npm run build >/dev/null )
 
 echo "==> Writing config"
 bash "$ROOT/scripts/hive-os" init-config
