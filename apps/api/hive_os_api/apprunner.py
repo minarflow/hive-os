@@ -9,10 +9,13 @@ from __future__ import annotations
 import asyncio
 import os
 import signal
+import subprocess
 import time
 from typing import Any
 
 from .runners import augmented_path
+
+IS_WINDOWS = os.name == "nt"
 
 
 class AppManager:
@@ -24,10 +27,18 @@ class AppManager:
         env = os.environ.copy()
         env["PATH"] = augmented_path(env.get("PATH"))
         env["PORT"] = str(port)
+        # Run the command string through the platform shell, in its own process
+        # group so we can clean-kill the whole tree later.
+        if IS_WINDOWS:
+            shell_argv = ["cmd", "/c", command]
+            extra = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+        else:
+            shell_argv = ["bash", "-lc", command]
+            extra = {"start_new_session": True}
         proc = await asyncio.create_subprocess_exec(
-            "bash", "-lc", command, cwd=cwd, env=env,
+            *shell_argv, cwd=cwd, env=env,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
-            start_new_session=True,  # own process group → clean kill of children
+            **extra,
         )
         self._apps[slug] = {"proc": proc, "port": port, "command": command, "started_at": time.time(), "log": []}
         asyncio.create_task(self._drain(slug, proc))
@@ -50,7 +61,12 @@ class AppManager:
         proc = app["proc"]
         if proc.returncode is None:
             try:
-                os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+                if IS_WINDOWS:
+                    # taskkill /T ends the child tree; fall back to terminate().
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+                                   capture_output=True, check=False)
+                else:
+                    os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             except Exception:
                 try:
                     proc.terminate()

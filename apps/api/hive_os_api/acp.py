@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 from collections import deque
 from pathlib import Path
 from typing import Any, Awaitable, Callable
@@ -77,8 +78,16 @@ class AcpProcess:
             os.makedirs(self.home, exist_ok=True)
         env["PATH"] = augmented_path(env.get("PATH"))
         os.makedirs(self.cwd, exist_ok=True)
+        # Resolve the launcher to a full path. On Windows `npx` is actually
+        # `npx.cmd`; create_subprocess_exec won't apply PATHEXT, so spawning the
+        # bare name fails. shutil.which honors PATHEXT (Windows) and PATH (all
+        # OSes), so the agent launches cross-platform.
+        argv = list(self.spec.spawn_argv)
+        resolved = shutil.which(argv[0], path=env["PATH"])
+        if resolved:
+            argv[0] = resolved
         self.proc = await asyncio.create_subprocess_exec(
-            *self.spec.spawn_argv,
+            *argv,
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE, env=env, cwd=self.cwd, limit=READ_LIMIT,
         )

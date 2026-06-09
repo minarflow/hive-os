@@ -32,7 +32,18 @@ def env_bool(name: str, default: bool) -> bool:
     return val.strip().lower() in ("1", "true", "yes", "on")
 
 
-workspace_root = Path(env_path("HIVEOS_WORKSPACE_ROOT", Path.home() / ".local/share/hive-os"))
+def default_data_dir() -> Path:
+    """Per-OS default for runtime data (DB, projects, profiles). Overridable via
+    HIVEOS_WORKSPACE_ROOT."""
+    if os.name == "nt":  # Windows
+        base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+        return Path(base) / "hive-os"
+    if sys.platform == "darwin":  # macOS
+        return Path.home() / "Library" / "Application Support" / "hive-os"
+    return Path.home() / ".local" / "share" / "hive-os"  # Linux/XDG
+
+
+workspace_root = Path(env_path("HIVEOS_WORKSPACE_ROOT", default_data_dir()))
 web_dist = Path(env_path("HIVEOS_WEB_DIST", REPO_ROOT / "apps/web/dist"))
 projectctl = Path(env_path("HIVEOS_PROJECTCTL", REPO_ROOT / "infra/scripts/hiveosctl"))
 

@@ -42,13 +42,21 @@ def augmented_path(path_env: str | None = None) -> str:
     """
 
     base = path_env or os.environ.get("PATH", "")
-    extras = (
-        os.path.expanduser("~/.local/bin"),
-        os.path.expanduser("~/bin"),
-        "/home/linuxbrew/.linuxbrew/bin",
-        "/usr/local/bin",
-        "/opt/homebrew/bin",
-    )
+    if os.name == "nt":  # Windows: common npm/global bin dirs service procs miss
+        appdata = os.environ.get("APPDATA", "")
+        local = os.environ.get("LOCALAPPDATA", "")
+        extras = tuple(p for p in (
+            os.path.join(appdata, "npm") if appdata else "",
+            os.path.join(local, "Microsoft", "WindowsApps") if local else "",
+        ) if p)
+    else:
+        extras = (
+            os.path.expanduser("~/.local/bin"),
+            os.path.expanduser("~/bin"),
+            "/home/linuxbrew/.linuxbrew/bin",
+            "/usr/local/bin",
+            "/opt/homebrew/bin",
+        )
     parts = [p for p in base.split(os.pathsep) if p]
     for extra in extras:
         if extra not in parts:
