@@ -41,14 +41,20 @@ const THEME_LS = 'hive.theme'
 const FONT_LS = 'hive.font'
 const SIZE_LS = 'hive.fontSize'
 
+// Defaults for a fresh install / new browser (no stored preference yet):
+// Sunset theme + Inter font + Small size. Users who already picked keep theirs.
+export const DEFAULT_THEME: ThemeKey = 'sunset'
+export const DEFAULT_FONT: FontKey = 'inter'
+export const DEFAULT_FONT_SIZE: FontSizeKey = 'sm'
+
 export function getTheme(): ThemeKey {
   const v = localStorage.getItem(THEME_LS)
-  return THEMES.some(t => t.key === v) ? (v as ThemeKey) : 'light'
+  return THEMES.some(t => t.key === v) ? (v as ThemeKey) : DEFAULT_THEME
 }
 
 export function getFont(): FontKey {
   const v = localStorage.getItem(FONT_LS)
-  return FONTS.some(f => f.key === v) ? (v as FontKey) : 'inter'
+  return FONTS.some(f => f.key === v) ? (v as FontKey) : DEFAULT_FONT
 }
 
 export function applyTheme(key: ThemeKey) {
@@ -64,7 +70,7 @@ export function applyFont(key: FontKey) {
 
 export function getFontSize(): FontSizeKey {
   const v = localStorage.getItem(SIZE_LS)
-  return FONT_SIZES.some(s => s.key === v) ? (v as FontSizeKey) : 'base'
+  return FONT_SIZES.some(s => s.key === v) ? (v as FontSizeKey) : DEFAULT_FONT_SIZE
 }
 
 export function applyFontSize(key: FontSizeKey) {
