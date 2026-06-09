@@ -178,3 +178,140 @@ def test_assistant_message_carries_run_id_and_activity(tmp_path):
     assert "Task" in titles and titles["Task"]["subagent"] is True      # subagent flagged
     assert "Write fib.py" in titles and titles["Write fib.py"]["subagent"] is False
     assert titles["Task"]["status"] == "completed"
+
+
+def test_successful_run_appends_auto_log(tmp_path):
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+
+    class FakeProc:
+        def __init__(self): self.calls = 0
+        async def load_session(self, *a): raise Exception("new")
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            self.calls += 1
+            if self.calls == 1:
+                on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Built the feature."}})
+            else:  # the summarize follow-up
+                on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Implemented login and added tests."}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        _proc = FakeProc()
+        async def get(self, spec=None, home=None, cwd=None): return FakeMgr._proc
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "build login"})
+
+    async def run_once():
+        r = app.state.worker.claim_run(); assert r; await app.state.worker.execute_run(r)
+    asyncio.run(run_once())
+
+    log = (tmp_path / "ws" / "users" / "k" / "wiki" / "log.md")
+    assert log.exists()
+    assert "Implemented login and added tests." in log.read_text(encoding="utf-8")
+    assert FakeMgr._proc.calls == 2   # main turn + summarize turn
+
+
+def test_auto_log_failure_does_not_fail_run(tmp_path):
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+
+    class FakeProc:
+        def __init__(self): self.calls = 0
+        async def load_session(self, *a): raise Exception("new")
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            self.calls += 1
+            if self.calls == 1:
+                on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "Did the work."}})
+                return "end_turn"
+            raise RuntimeError("summarizer exploded")
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "go"})
+
+    async def run_once():
+        r = app.state.worker.claim_run(); await app.state.worker.execute_run(r)
+    asyncio.run(run_once())
+
+    msgs = c.get(f"/api/sessions/{sid}/messages", headers=h).json()["messages"]
+    asst = [m for m in msgs if m["role"] == "assistant"][-1]
+    assert asst["content"] == "Did the work."   # run still completed cleanly
+
+
+def test_wiki_draft_run_emits_draft_event(tmp_path):
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+
+    class FakeProc:
+        async def load_session(self, *a): raise Exception("new")
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            draft = '```json\n{"title":"Caching","path":"perf/caching.md","body":"# Caching","related":[],"conflicts":[],"action":"new","target":null}\n```'
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": draft}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+    r = c.post(f"/api/sessions/{sid}/wiki-note/draft", headers=h, json={"profile_id": None})
+    assert r.status_code == 202
+
+    async def run_once():
+        run = app.state.worker.claim_run(); assert run["kind"] == "wiki_draft"; await app.state.worker.execute_run(run)
+    asyncio.run(run_once())
+
+    events = c.get(f"/api/sessions/{sid}/events", headers=h).json()["events"]
+    drafts = [e for e in events if e["type"] == "wiki.draft"]
+    assert drafts, "expected a wiki.draft event"
+    payload = drafts[-1]["payload"]
+    assert payload["title"] == "Caching"
+    assert payload["path"] == "perf/caching.md"
+    msgs = c.get(f"/api/sessions/{sid}/messages", headers=h).json()["messages"]
+    assert not [m for m in msgs if m["role"] == "assistant"]
+
+
+def test_wiki_note_commit_writes_and_merges(tmp_path):
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    sid = c.post("/api/sessions", headers=h, json={"title": "t"}).json()["id"]
+
+    r = c.post(f"/api/sessions/{sid}/wiki-note/commit", headers=h,
+               json={"path": "perf/caching.md", "content": "# Caching\nUse Redis.", "mode": "new"})
+    assert r.status_code == 200
+    body = c.get("/api/wiki/file", headers=h, params={"path": "perf/caching.md"}).json()
+    assert "Use Redis." in body["content"]
+
+    r2 = c.post(f"/api/sessions/{sid}/wiki-note/commit", headers=h,
+                json={"path": "perf/caching.md", "content": "## Update\nAdd TTL.", "mode": "append"})
+    assert r2.status_code == 200
+    merged = c.get("/api/wiki/file", headers=h, params={"path": "perf/caching.md"}).json()["content"]
+    assert "Use Redis." in merged and "Add TTL." in merged
