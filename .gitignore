@@ -45,3 +45,4 @@ apps/api/.dev/
 
 # Internal workflow docs (brainstorm specs / implementation plans) — not public
 docs/superpowers/
+docs/plans/
