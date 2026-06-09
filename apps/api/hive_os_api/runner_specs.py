@@ -53,6 +53,19 @@ RUNNER_SPECS: dict[str, RunnerSpec] = {
         seed_files=("auth.json", "config.toml"),
         refresh_files=("auth.json",),
     ),
+    "gemini": RunnerSpec(
+        id="gemini",
+        spawn_argv=["gemini", "--experimental-acp"],
+        # Gemini CLI is the one native-ACP agent; it uses its global ~/.gemini
+        # login (no per-profile home_env wired yet — verify on a host with it).
+        home_env="",
+        binary="gemini",
+        display_name="Gemini CLI",
+        auth_hint="Install the Gemini CLI and log in (or set GEMINI_API_KEY).",
+        source_dir="~/.gemini",
+        seed_files=(),
+        refresh_files=(),
+    ),
 }
 
 DEFAULT_RUNNER = "hermes"

@@ -28,3 +28,11 @@ def test_codex_spec():
     assert "codex-acp" in " ".join(s.spawn_argv)
     assert s.home_env == "CODEX_HOME"
     assert s.binary == "codex"
+
+
+def test_gemini_spec():
+    from hive_os_api.runner_specs import runner_spec
+    s = runner_spec("gemini")
+    assert s.spawn_argv == ["gemini", "--experimental-acp"]
+    assert s.binary == "gemini"
+    assert s.home_env == ""  # uses global ~/.gemini login

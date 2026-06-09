@@ -73,7 +73,7 @@ class AcpProcess:
         if self._started:
             return
         env = os.environ.copy()
-        if self.home:
+        if self.home and self.spec.home_env:
             env[self.spec.home_env] = self.home
             os.makedirs(self.home, exist_ok=True)
         env["PATH"] = augmented_path(env.get("PATH"))
