@@ -359,3 +359,19 @@ def test_projectless_chat_has_no_wiki(tmp_path):
     asyncio.run(run_once())
 
     assert not list((tmp_path / "ws").rglob("log.md"))
+
+
+def test_wiki_commit_rebuilds_index(tmp_path):
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
+
+    r = c.post(f"/api/sessions/{sid}/wiki-note/commit", headers=h,
+               json={"path": "perf/caching.md", "content": "# Caching\n\nUse Redis.", "mode": "new"})
+    assert r.status_code == 200
+    idx = (Path(proj["path"]) / "wiki" / "index.md").read_text(encoding="utf-8")
+    assert "[Caching](perf/caching.md)" in idx
+    assert "Use Redis." in idx

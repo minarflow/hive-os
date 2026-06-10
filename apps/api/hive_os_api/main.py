@@ -1838,6 +1838,10 @@ def create_app(config: dict[str, Any] | None = None) -> FastAPI:
             "INSERT INTO audit_log(actor_user_id, action, target_type, target_id, metadata) VALUES (?, 'wiki.note.commit', 'wiki', ?, ?)",
             (user["id"], payload.path, json.dumps({"mode": payload.mode, "session_id": session_id})),
         )
+        try:
+            wiki_memory.rebuild_index(root)
+        except Exception:
+            logging.getLogger("hive_os.api").exception("wiki index rebuild failed (non-fatal)")
         return {"ok": True, "path": payload.path}
 
     @app.post("/api/chat/send", status_code=202)
