@@ -375,3 +375,120 @@ def test_wiki_commit_rebuilds_index(tmp_path):
     idx = (Path(proj["path"]) / "wiki" / "index.md").read_text(encoding="utf-8")
     assert "[Caching](perf/caching.md)" in idx
     assert "Use Redis." in idx
+
+
+def test_fresh_session_prompt_gets_hive_preamble(tmp_path):
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    seen = {}
+
+    class FakeProc:
+        async def load_session(self, *a): raise Exception("new")   # force fresh new_session
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            seen.setdefault("prompts", []).append(text)
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "ok"}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
+    c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "hello there"})
+
+    async def run_once():
+        run = app.state.worker.claim_run(); await app.state.worker.execute_run(run)
+    asyncio.run(run_once())
+
+    sent = seen["prompts"][0]
+    assert sent.startswith("[Hive OS context]")
+    assert "hello there" in sent          # the real user message still follows
+
+
+def test_resumed_session_prompt_has_no_preamble(tmp_path):
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    seen = {"prompts": []}
+
+    class FakeProc:
+        async def load_session(self, sid, cwd): pass        # session already exists -> resume
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            seen["prompts"].append(text)
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "ok"}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        _p = FakeProc()
+        async def get(self, spec=None, home=None, cwd=None): return FakeMgr._p
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
+    # seed the agent_sessions row so this home already has an ACP session -> load path
+    # use the actual hermes_home from the profile so the lookup matches
+    profiles = c.get("/api/profiles", headers=h).json()["profiles"]
+    hermes_home = profiles[0]["hermes_home"]
+    app.state.worker_db.execute(
+        "INSERT OR REPLACE INTO agent_sessions(session_id, hermes_home, acp_session_id) VALUES (?, ?, ?)",
+        (sid, hermes_home, "acp-1"))
+    app.state.worker_db.commit()
+
+    c.post(f"/api/sessions/{sid}/runs", headers=h, json={"message": "second turn"})
+
+    async def run_once():
+        run = app.state.worker.claim_run(); await app.state.worker.execute_run(run)
+    asyncio.run(run_once())
+
+    sent = seen["prompts"][0]
+    assert "[Hive OS context]" not in sent
+    assert sent == "second turn"
+
+
+def test_wiki_draft_run_has_no_preamble(tmp_path):
+    import asyncio
+    app = create_app({"database_path": str(tmp_path / "h.db"), "workspace_root": str(tmp_path / "ws"), "projectctl_path": "/usr/bin/true", "start_worker": False})
+    seen = {"prompts": []}
+
+    class FakeProc:
+        async def load_session(self, *a): raise Exception("new")
+        async def new_session(self, *a): return "acp-1"
+        async def prompt(self, sid, text, on_update, timeout=600):
+            seen["prompts"].append(text)
+            draft = '```json\n{"title":"X","path":"a.md","body":"# X","related":[],"conflicts":[],"action":"new","target":null}\n```'
+            on_update({"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": draft}})
+            return "end_turn"
+        def cancel(self, *a): pass
+
+    class FakeMgr:
+        async def get(self, spec=None, home=None, cwd=None): return FakeProc()
+        async def recycle(self, *a, **k): pass
+        async def shutdown(self): pass
+
+    app.state.acp_manager = FakeMgr()
+    c = TestClient(app)
+    tok = c.post("/api/setup/bootstrap", json={"username": "k", "password": "password123", "profile_name": "D", "profile_slug": "default"}).json()["token"]
+    h = {"Authorization": f"Bearer {tok}"}
+    proj = c.get("/api/projects", headers=h).json()["projects"][0]
+    sid = c.post("/api/sessions", headers=h, json={"title": "t", "project_slug": proj["slug"]}).json()["id"]
+    c.post(f"/api/sessions/{sid}/wiki-note/draft", headers=h, json={"profile_id": None})
+
+    async def run_once():
+        run = app.state.worker.claim_run(); await app.state.worker.execute_run(run)
+    asyncio.run(run_once())
+
+    assert "[Hive OS context]" not in seen["prompts"][0]

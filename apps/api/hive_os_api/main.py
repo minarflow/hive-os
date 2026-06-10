@@ -461,10 +461,15 @@ class RunWorker:
         hermes_home = run["hermes_home"] or ""
         spec = runner_spec(run["runner_id"])
         cwd = str(Path(cfg["workspace_root"]) / "scratch")
+        project_name: str | None = None
+        project_slug: str | None = None
+        project_wiki: Path | None = None
         if project_id:
-            row = db.execute("SELECT path FROM projects WHERE id = ?", (project_id,)).fetchone()
+            row = db.execute("SELECT name, slug, path FROM projects WHERE id = ?", (project_id,)).fetchone()
             if row and row["path"]:
                 cwd = row["path"]
+                project_name, project_slug = row["name"], row["slug"]
+                project_wiki = Path(row["path"]) / "wiki"
         Path(cwd).mkdir(parents=True, exist_ok=True)
 
         chunks: list[str] = []
@@ -524,8 +529,10 @@ class RunWorker:
                     await proc.load_session(acp_sid, cwd)
                 except Exception:
                     acp_sid = None  # stale/unknown session -> start fresh
+            fresh_session = False
             if not acp_sid:
                 acp_sid = await proc.new_session(cwd)
+                fresh_session = True
                 with self.app.state.db_lock:
                     db.execute(
                         "INSERT OR REPLACE INTO agent_sessions(session_id, hermes_home, acp_session_id) VALUES (?, ?, ?)",
@@ -534,7 +541,18 @@ class RunWorker:
             self.active_runs[run_id] = (proc, acp_sid)
             hb_task = asyncio.create_task(self._heartbeat(run_id, float(cfg.get("run_heartbeat_seconds") or 10)))
             timeout = int(cfg.get("run_timeout_seconds") or 600)
-            stop_reason = await proc.prompt(acp_sid, run["prompt"], on_update, timeout=timeout)
+            prompt_text = run["prompt"]
+            if fresh_session and run.get("kind", "chat") != "wiki_draft":
+                try:
+                    # Generate the catalog on first sight so the preamble can point at it.
+                    if project_wiki is not None and project_wiki.is_dir() and not (project_wiki / "index.md").exists():
+                        wiki_memory.rebuild_index(project_wiki)
+                    preamble = wiki_memory.build_run_preamble(project_name, project_slug, project_wiki)
+                    if preamble:
+                        prompt_text = preamble + "\n\n---\n\n" + prompt_text
+                except Exception:
+                    logging.getLogger("hive_os.worker").exception("hive preamble build failed (non-fatal)")
+            stop_reason = await proc.prompt(acp_sid, prompt_text, on_update, timeout=timeout)
 
             status_row = db.execute("SELECT status FROM runs WHERE id = ?", (run_id,)).fetchone()
             if status_row and status_row["status"] == "cancelled":
