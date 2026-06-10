@@ -122,3 +122,12 @@ def test_rebuild_index_noop_when_dir_missing(tmp_path: Path):
     root = tmp_path / "nope"
     wiki_memory.rebuild_index(root)        # must not raise
     assert not (root / "index.md").exists()
+
+
+def test_rebuild_index_handles_crlf_frontmatter(tmp_path: Path):
+    root = tmp_path / "wiki"
+    root.mkdir()
+    (root / "win.md").write_text("---\r\ndescription: CRLF works\r\n---\r\n# Win\r\n", encoding="utf-8")
+    wiki_memory.rebuild_index(root)
+    idx = (root / "index.md").read_text(encoding="utf-8")
+    assert "CRLF works" in idx

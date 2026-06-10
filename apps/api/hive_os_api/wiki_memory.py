@@ -56,6 +56,7 @@ def _note_title(text: str, path: Path) -> str:
 def _note_summary(text: str) -> str:
     """One line for the catalog: frontmatter `description:` if present, else the
     first non-blank, non-heading line. Truncated."""
+    text = text.replace("\r\n", "\n")
     fm = re.match(r"^---\n(.*?)\n---\n", text, re.DOTALL)
     if fm:
         m = re.search(r"^description:\s*(.+)$", fm.group(1), re.MULTILINE)
