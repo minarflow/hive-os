@@ -69,3 +69,56 @@ def test_parse_note_draft_fallback_on_garbage():
     assert d["body"] == "just some prose, no json here"
     assert d["action"] == "new"
     assert d["related"] == [] and d["conflicts"] == []
+
+
+def test_rebuild_index_lists_notes_with_titles_and_summaries(tmp_path: Path):
+    root = tmp_path / "wiki"
+    (root / "auth").mkdir(parents=True)
+    (root / "auth" / "jwt.md").write_text("# JWT migration\n\nMoved auth to JWT tokens.\n", encoding="utf-8")
+    (root / "perf.md").write_text(
+        '---\ndescription: Caching strategy for the API\n---\n# Perf\n\nbody\n', encoding="utf-8")
+    wiki_memory.rebuild_index(root)
+    idx = (root / "index.md").read_text(encoding="utf-8")
+    assert "[JWT migration](auth/jwt.md)" in idx
+    assert "Moved auth to JWT tokens." in idx
+    assert "[Perf](perf.md)" in idx
+    assert "Caching strategy for the API" in idx   # frontmatter description wins
+
+
+def test_rebuild_index_excludes_log_index_and_graphify(tmp_path: Path):
+    root = tmp_path / "wiki"
+    root.mkdir()
+    (root / "log.md").write_text("# Project log\n", encoding="utf-8")
+    (root / "index.md").write_text("# Wiki index\n", encoding="utf-8")
+    (root / "note.md").write_text("# Note\n\nKeep me.\n", encoding="utf-8")
+    (root / "graphify-out").mkdir()
+    (root / "graphify-out" / "GRAPH_REPORT.md").write_text("# Report\n\nnoise\n", encoding="utf-8")
+    wiki_memory.rebuild_index(root)
+    idx = (root / "index.md").read_text(encoding="utf-8")
+    assert "note.md" in idx
+    assert "log.md" not in idx
+    assert "GRAPH_REPORT" not in idx
+    assert "graphify-out" not in idx
+
+
+def test_rebuild_index_title_falls_back_to_filename(tmp_path: Path):
+    root = tmp_path / "wiki"
+    root.mkdir()
+    (root / "run-worker.md").write_text("no heading here, just prose.\n", encoding="utf-8")
+    wiki_memory.rebuild_index(root)
+    idx = (root / "index.md").read_text(encoding="utf-8")
+    assert "[run worker](run-worker.md)" in idx          # slug humanized
+    assert "no heading here, just prose." in idx
+
+
+def test_rebuild_index_empty_wiki_writes_placeholder(tmp_path: Path):
+    root = tmp_path / "wiki"
+    root.mkdir()
+    wiki_memory.rebuild_index(root)
+    assert "_No notes yet._" in (root / "index.md").read_text(encoding="utf-8")
+
+
+def test_rebuild_index_noop_when_dir_missing(tmp_path: Path):
+    root = tmp_path / "nope"
+    wiki_memory.rebuild_index(root)        # must not raise
+    assert not (root / "index.md").exists()
