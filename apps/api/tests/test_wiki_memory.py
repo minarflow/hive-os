@@ -131,3 +131,56 @@ def test_rebuild_index_handles_crlf_frontmatter(tmp_path: Path):
     wiki_memory.rebuild_index(root)
     idx = (root / "index.md").read_text(encoding="utf-8")
     assert "CRLF works" in idx
+
+
+def test_preamble_none_without_project():
+    assert wiki_memory.build_run_preamble(None, None, None) is None
+
+
+def test_preamble_identity_and_index_guidance(tmp_path: Path):
+    root = tmp_path / "wiki"
+    root.mkdir()
+    (root / "index.md").write_text("# Wiki index\n", encoding="utf-8")
+    p = wiki_memory.build_run_preamble("Minarflow", "minarflow", root)
+    assert p.startswith("[Hive OS context]")
+    assert 'Project: "Minarflow" (slug: minarflow)' in p
+    assert "wiki/index.md" in p
+    assert "Save to wiki" in p
+    assert "graphify" not in p              # no graph present -> no graphify line
+
+
+def test_preamble_points_at_folder_when_no_index(tmp_path: Path):
+    root = tmp_path / "wiki"
+    root.mkdir()
+    (root / "note.md").write_text("# N\n", encoding="utf-8")   # wiki exists, no index.md yet
+    p = wiki_memory.build_run_preamble("P", "p", root)
+    assert "scan the wiki/ folder" in p
+    assert "wiki/index.md" not in p
+
+
+def test_preamble_fresh_project_without_wiki_dir(tmp_path: Path):
+    p = wiki_memory.build_run_preamble("P", "p", tmp_path / "wiki")   # dir absent
+    assert "[Hive OS context]" in p
+    assert "will hold this project's durable memory" in p
+    assert "index.md" not in p
+
+
+def test_preamble_includes_graphify_line_when_graph_and_binary_present(tmp_path: Path, monkeypatch):
+    root = tmp_path / "wiki"
+    (root / "graphify-out").mkdir(parents=True)
+    (root / "index.md").write_text("# Wiki index\n", encoding="utf-8")
+    (root / "graphify-out" / "graph.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(wiki_memory.shutil, "which", lambda name: "/usr/bin/graphify")
+    p = wiki_memory.build_run_preamble("P", "p", root)
+    assert "graphify query" in p
+    assert "wiki/graphify-out/graph.json" in p
+
+
+def test_preamble_omits_graphify_when_binary_absent(tmp_path: Path, monkeypatch):
+    root = tmp_path / "wiki"
+    (root / "graphify-out").mkdir(parents=True)
+    (root / "index.md").write_text("# Wiki index\n", encoding="utf-8")
+    (root / "graphify-out" / "graph.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(wiki_memory.shutil, "which", lambda name: None)
+    p = wiki_memory.build_run_preamble("P", "p", root)
+    assert "graphify" not in p

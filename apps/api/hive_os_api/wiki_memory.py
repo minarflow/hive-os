@@ -97,6 +97,49 @@ def rebuild_index(wiki_root: Path) -> None:
     (root / "index.md").write_text("\n".join(body) + "\n", encoding="utf-8")
 
 
+HIVE_PREAMBLE_MARKER = "[Hive OS context]"
+
+
+def build_run_preamble(project_name: str | None, project_slug: str | None, wiki_root: Path | None) -> str | None:
+    """Context block prepended to the FIRST prompt of an agent's ACP session,
+    telling it it runs inside Hive OS and how to consult the project's wiki memory.
+    Runner-agnostic plain text. Returns None when there is no project to anchor to."""
+    if not project_name:
+        return None
+    lines = [
+        HIVE_PREAMBLE_MARKER,
+        f'You are running inside Hive OS. Project: "{project_name}" (slug: {project_slug or "-"}).',
+        "Your working directory is this project — files you read and write are its files.",
+    ]
+    root = Path(wiki_root) if wiki_root is not None else None
+    if root is not None and root.is_dir():
+        if (root / "index.md").exists():
+            lines += [
+                "",
+                "This project keeps durable memory in wiki/. Before answering anything that "
+                "builds on past work, scan wiki/index.md (a catalog of notes) and open the "
+                "relevant ones. Use that context when it applies; ignore it when it doesn't.",
+            ]
+        else:
+            lines += [
+                "",
+                "This project keeps durable memory in wiki/. Before answering anything that "
+                "builds on past work, scan the wiki/ folder and open the relevant notes.",
+            ]
+        if (root / "graphify-out" / "graph.json").exists() and shutil.which("graphify"):
+            lines.append(
+                'Fast lookup: `graphify query "<question>" --graph wiki/graphify-out/graph.json --budget 2000`.'
+            )
+        lines += [
+            "",
+            'Durable notes are curated by the human via "Save to wiki" — read wiki/ freely, '
+            "but don't create notes yourself.",
+        ]
+    else:
+        lines += ["", "A wiki/ folder will hold this project's durable memory as it grows."]
+    return "\n".join(lines)
+
+
 def build_draft_prompt(existing_notes: list[dict[str, Any]]) -> str:
     """Prompt the (already-context-loaded) agent to distill THIS conversation into
     a wiki note, cross-checked against existing notes. log.md is excluded — it is
